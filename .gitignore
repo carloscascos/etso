@@ -1,0 +1,125 @@
+# OBSERVATORIO ETS - Git Ignore File
+
+# Environment and configuration
+.env
+.env.local
+.env.production
+*.env
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# ChromaDB data
+chroma_data/
+chroma_db/
+*.chroma
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+log.txt
+
+# Reports and outputs
+reports/
+output/
+temp/
+tmp/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Test coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# AWS credentials (if accidentally created)
+.aws/
+aws_credentials
+credentials
+
+# API keys and secrets (additional protection)
+api_keys.txt
+secrets.txt
+config.ini
+
+# Large data files
+*.csv.large
+*.json.large
+data/large/
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.cert
+
+# Docker
+Dockerfile.local
+docker-compose.override.yml
+.dockerignore
