@@ -221,8 +221,6 @@ class ObservatorioDashboard {
     }
     
     displayValidationStatus(validations) {
-        const container = document.getElementById('validation-stats');
-        
         // Calculate pending validations
         let totalPending = 0;
         let totalValidated = 0;
@@ -236,8 +234,7 @@ class ObservatorioDashboard {
             }
         });
         
-        // Clear the validation stats display - we only show the pending count now
-        container.innerHTML = '';
+        // We removed the validation-stats container, so no need to update it
         
         // Update pending badge
         const pendingBadge = document.getElementById('pending-validations');
