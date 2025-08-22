@@ -180,33 +180,33 @@ body {
     font-weight: 600;
 }
 
-/* Summary Cards */
+/* Summary Cards - Compact */
 .summary-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 20px;
-    margin-bottom: 24px;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
 }
 
 .stat-card {
     text-align: center;
-    padding: 24px;
+    padding: 12px 8px;
 }
 
 .stat-card .card-header {
     background: none;
     border: none;
-    padding: 0 0 8px 0;
-    font-size: var(--font-size-sm);
+    padding: 0 0 4px 0;
+    font-size: 0.7rem;
     font-weight: 500;
     color: var(--text-secondary);
 }
 
 .card-value {
-    font-size: 2.5rem;
+    font-size: 1.2rem;
     font-weight: 700;
     color: var(--primary-color);
-    margin: 8px 0;
+    margin: 4px 0;
     line-height: 1;
 }
 
@@ -215,10 +215,10 @@ body {
 .card-value.danger { color: var(--danger-color); }
 
 .card-subtitle {
-    font-size: var(--font-size-xs);
+    font-size: 0.65rem;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
 }
 
 /* Dashboard Grid - REMOVED, using dashboard-grid-two-col instead */
