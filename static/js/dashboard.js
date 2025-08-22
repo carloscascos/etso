@@ -1687,7 +1687,7 @@ class ObservatorioDashboard {
         
         try {
             // Update the prompt in database
-            const response = await this.fetchAPI(`/api/update-theme/${themeId}`, {
+            const response = await fetch(`/api/update-theme/${themeId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -1697,7 +1697,13 @@ class ObservatorioDashboard {
                 })
             });
             
-            if (response.success) {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
                 this.showSuccess('Research prompt saved successfully!');
                 
                 // Update the display
@@ -1707,7 +1713,7 @@ class ObservatorioDashboard {
                 }
                 this.cancelPromptEdit(themeId);
             } else {
-                throw new Error(response.error || 'Failed to save prompt');
+                throw new Error(result.error || 'Failed to save prompt');
             }
             
         } catch (error) {
