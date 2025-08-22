@@ -249,3 +249,4 @@ dashboard.py             # Flask backend with comprehensive API
 - Dashboard response time: <2 seconds for most operations
 - System handles 10+ concurrent research themes
 - Maintains 100,000+ stored research findings with 2+ years historical data
+- always show the public url

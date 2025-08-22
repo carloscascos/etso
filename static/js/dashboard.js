@@ -355,9 +355,6 @@ class ObservatorioDashboard {
                 <div class="theme-item-header">
                     <span class="theme-id">Theme ${theme.id}</span>
                     <div class="theme-actions">
-                        <button class="edit-theme-btn" onclick="dashboard.editTheme(${theme.id})">
-                            📝 Edit
-                        </button>
                         <button class="btn btn-sm btn-primary" onclick="dashboard.viewResearch(${theme.id})">
                             🔍 View Details
                         </button>

@@ -23,7 +23,7 @@
                 <div class="header-stats">
                     <span id="current-quarter" class="quarter-badge">Q1 2025</span>
                     <span id="last-update" class="last-update">Last update: --</span>
-                    <span class="version-badge">v1.0.1</span>
+                    <span class="version-badge">v1.0.2</span>
                 </div>
             </div>
         </header>
@@ -62,7 +62,7 @@
             </section>
 
             <!-- Main Content Grid -->
-            <div class="dashboard-grid">
+            <div class="dashboard-grid-two-col">
                 <!-- Recent Research Findings -->
                 <section class="card findings-section">
                     <div class="card-header">
@@ -78,10 +78,10 @@
                 <section class="card validation-section">
                     <div class="card-header">
                         <h2>✅ Validation Status</h2>
-                        <div style="display: flex; gap: 8px;">
-                            <span id="pending-validations" class="badge" style="background: #ffc107; color: #000;">0 pending</span>
-                            <button id="run-validation-btn" class="btn btn-sm btn-success" onclick="dashboard.runBulkValidation()">
-                                🔄 Run Analysis
+                        <div style="display: flex; gap: 4px; align-items: center;">
+                            <span id="pending-validations" class="badge-mini" style="background: #ffc107; color: #000;">0 pending</span>
+                            <button id="run-validation-btn" class="btn btn-xs btn-success" onclick="dashboard.runBulkValidation()">
+                                🔄 Run
                             </button>
                         </div>
                     </div>
@@ -92,27 +92,6 @@
                     <div id="validation-progress" class="execution-status running hidden" style="margin: 12px;">
                         <span class="spinner"></span>
                         <span>Running validation analysis...</span>
-                    </div>
-                </section>
-
-                <!-- System Health -->
-                <section class="card health-section">
-                    <div class="card-header">
-                        <h2>🔧 System Health</h2>
-                    </div>
-                    <div class="health-indicators" id="health-indicators">
-                        <div class="health-item">
-                            <span class="indicator" id="traffic-db-status"></span>
-                            <span class="health-label">Traffic DB</span>
-                        </div>
-                        <div class="health-item">
-                            <span class="indicator" id="etso-db-status"></span>
-                            <span class="health-label">ETSO DB</span>
-                        </div>
-                        <div class="health-item">
-                            <span class="indicator" id="chromadb-status"></span>
-                            <span class="health-label">ChromaDB</span>
-                        </div>
                     </div>
                 </section>
             </div>
