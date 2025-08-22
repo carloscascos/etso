@@ -406,7 +406,7 @@ class ObservatorioDashboard {
                             ✏️ Edit
                         </button>
                     </div>
-                    <div id="prompt-display-${metadata.id}" class="metadata-value" style="white-space: pre-wrap;">
+                    <div id="prompt-display-${metadata.id}" class="metadata-value" style="white-space: pre-wrap; position: relative;">
                         ${metadata.user_guidance || 'No research prompt provided'}
                     </div>
                     <div id="prompt-edit-${metadata.id}" style="display: none;">
@@ -421,6 +421,11 @@ class ObservatorioDashboard {
                                 Cancel
                             </button>
                         </div>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
+                        <button class="btn btn-primary" onclick="dashboard.runResearch(${metadata.id}, '${metadata.quarter}')">
+                            ▶️ RUN Research
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1672,6 +1677,76 @@ class ObservatorioDashboard {
         if (displayDiv && editDiv) {
             displayDiv.style.display = 'block';
             editDiv.style.display = 'none';
+        }
+    }
+    
+    async runResearch(themeId, quarter) {
+        // Get the current prompt text
+        const promptDisplay = document.getElementById(`prompt-display-${themeId}`);
+        if (!promptDisplay) {
+            this.showError('Unable to find research prompt');
+            return;
+        }
+        
+        const prompt = promptDisplay.textContent.trim();
+        if (!prompt || prompt === 'No research prompt provided') {
+            this.showError('Please provide a research prompt before running');
+            return;
+        }
+        
+        if (!confirm(`This will run the research with the following prompt:\n\n"${prompt}"\n\nContinue?`)) {
+            return;
+        }
+        
+        try {
+            // Show loading state on button
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '⏳ Running Research...';
+            
+            // Execute research
+            const response = await fetch('/api/execute-research', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    theme: prompt,
+                    quarter: quarter || 'Q1 2025'
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showSuccess('Research execution started successfully!');
+                
+                // If we got a research ID, start monitoring
+                if (result.research_id && result.research_id !== 'pending') {
+                    this.startExecutionMonitoring(result.research_id, themeId);
+                }
+                
+                // Refresh the page after a delay to show updated status
+                setTimeout(() => {
+                    this.loadResearchDetails(themeId);
+                }, 3000);
+            } else {
+                throw new Error(result.error || 'Failed to execute research');
+            }
+            
+        } catch (error) {
+            console.error('Error running research:', error);
+            this.showError(`Failed to run research: ${error.message}`);
+        } finally {
+            // Reset button state
+            const button = event.target;
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '▶️ RUN Research';
+            }
         }
     }
     
