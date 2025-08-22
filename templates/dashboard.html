@@ -20,9 +20,9 @@
             <div class="header-actions">
                 <button id="view-themes-btn" class="btn btn-primary">View All Themes</button>
                 <div class="header-stats">
-                    <span id="current-quarter" class="quarter-badge">Q1 2025</span>
+                    <span id="current-quarter" class="quarter-badge clickable" onclick="dashboard.showQuarterSelector()">Q1 2025</span>
                     <span id="last-update" class="last-update">Last update: --</span>
-                    <span class="version-badge">v1.2.3</span>
+                    <span class="version-badge">v1.2.4</span>
                 </div>
             </div>
         </header>
@@ -415,6 +415,93 @@
                         <div id="test-loading" class="loading hidden">Testing query...</div>
                         <div id="test-error" class="error hidden"></div>
                         <div id="test-success" class="execution-status completed hidden"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quarter Selector Modal -->
+    <div id="quarter-selector-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📅 Select Research Quarter</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="quarter-selector-container">
+                    <div class="quarter-selector-info">
+                        <p><strong>Research Period Configuration</strong></p>
+                        <p>Start Date: <strong>January 2022</strong> (Fixed)</p>
+                        <p>End Date: <span id="selected-end-date">March 2025</span> (Based on selected quarter)</p>
+                    </div>
+                    
+                    <div class="quarter-grid">
+                        <!-- 2025 -->
+                        <div class="year-section">
+                            <h4>2025</h4>
+                            <div class="quarter-buttons">
+                                <button class="quarter-btn active" data-quarter="Q1" data-year="2025" data-end="2025-03-31">
+                                    Q1 2025<br><small>Jan - Mar</small>
+                                </button>
+                                <button class="quarter-btn" data-quarter="Q2" data-year="2025" data-end="2025-06-30">
+                                    Q2 2025<br><small>Apr - Jun</small>
+                                </button>
+                                <button class="quarter-btn" data-quarter="Q3" data-year="2025" data-end="2025-09-30">
+                                    Q3 2025<br><small>Jul - Sep</small>
+                                </button>
+                                <button class="quarter-btn" data-quarter="Q4" data-year="2025" data-end="2025-12-31">
+                                    Q4 2025<br><small>Oct - Dec</small>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 2026 -->
+                        <div class="year-section">
+                            <h4>2026</h4>
+                            <div class="quarter-buttons">
+                                <button class="quarter-btn" data-quarter="Q1" data-year="2026" data-end="2026-03-31">
+                                    Q1 2026<br><small>Jan - Mar</small>
+                                </button>
+                                <button class="quarter-btn" data-quarter="Q2" data-year="2026" data-end="2026-06-30">
+                                    Q2 2026<br><small>Apr - Jun</small>
+                                </button>
+                                <button class="quarter-btn" data-quarter="Q3" data-year="2026" data-end="2026-09-30">
+                                    Q3 2026<br><small>Jul - Sep</small>
+                                </button>
+                                <button class="quarter-btn" data-quarter="Q4" data-year="2026" data-end="2026-12-31">
+                                    Q4 2026<br><small>Oct - Dec</small>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 2027 -->
+                        <div class="year-section">
+                            <h4>2027</h4>
+                            <div class="quarter-buttons">
+                                <button class="quarter-btn" data-quarter="Q1" data-year="2027" data-end="2027-03-31">
+                                    Q1 2027<br><small>Jan - Mar</small>
+                                </button>
+                                <button class="quarter-btn" data-quarter="Q2" data-year="2027" data-end="2027-06-30">
+                                    Q2 2027<br><small>Apr - Jun</small>
+                                </button>
+                                <button class="quarter-btn" data-quarter="Q3" data-year="2027" data-end="2027-09-30">
+                                    Q3 2027<br><small>Jul - Sep</small>
+                                </button>
+                                <button class="quarter-btn" data-quarter="Q4" data-year="2027" data-end="2027-12-31">
+                                    Q4 2027<br><small>Oct - Dec</small>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="quarter-actions">
+                        <button id="apply-quarter-btn" class="btn btn-primary">
+                            ✅ Apply Quarter Selection
+                        </button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('quarter-selector-modal').classList.remove('show')">
+                            Cancel
+                        </button>
                     </div>
                 </div>
             </div>

@@ -8,6 +8,10 @@ class ObservatorioDashboard {
         this.currentQueryResults = null; // Store current query results for copying
         this.isEditingQuery = false; // Track if query is in edit mode
         this.currentClaimId = null; // Store current claim ID for custom queries
+        this.currentQuarter = 'Q1'; // Current quarter
+        this.currentYear = '2025'; // Current year
+        this.startDate = '2022-01-01'; // Fixed start date
+        this.endDate = '2025-03-31'; // Dynamic end date based on quarter
         
         this.init();
     }
@@ -101,6 +105,17 @@ class ObservatorioDashboard {
         
         document.getElementById('generate-claims-btn').addEventListener('click', () => {
             this.generateValidationClaims();
+        });
+        
+        // Quarter selector event listeners
+        document.querySelectorAll('.quarter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.selectQuarter(e.target);
+            });
+        });
+        
+        document.getElementById('apply-quarter-btn').addEventListener('click', () => {
+            this.applyQuarterSelection();
         });
     }
     
@@ -1705,13 +1720,21 @@ class ObservatorioDashboard {
             button.disabled = true;
             button.innerHTML = '⏳ Running Research...';
             
-            // Execute research
+            // Get date range for research
+            const dateRange = this.getDateRangeForResearch();
+            
+            // Execute research with date range
             const response = await fetch('/api/execute-research', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     theme: prompt,
-                    quarter: quarter || 'Q1 2025'
+                    quarter: dateRange.quarter,
+                    quarterDisplay: dateRange.quarterDisplay,
+                    startDate: dateRange.startDate,
+                    endDate: dateRange.endDate,
+                    dateRange: `${dateRange.startDate} to ${dateRange.endDate}`,
+                    researchPeriod: `January 2022 to ${new Date(dateRange.endDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
                 })
             });
             
@@ -1915,6 +1938,75 @@ class ObservatorioDashboard {
             generateBtn.textContent = '🤖 Generate Validation Claims';
             generateBtn.disabled = false;
         }
+    }
+    
+    // Quarter Selector Methods
+    showQuarterSelector() {
+        document.getElementById('quarter-selector-modal').classList.add('show');
+        this.updateEndDateDisplay();
+    }
+    
+    selectQuarter(buttonElement) {
+        // Remove active from all buttons
+        document.querySelectorAll('.quarter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Add active to clicked button
+        buttonElement.classList.add('active');
+        
+        // Update display
+        this.updateEndDateDisplay();
+    }
+    
+    updateEndDateDisplay() {
+        const activeBtn = document.querySelector('.quarter-btn.active');
+        if (activeBtn) {
+            const endDate = activeBtn.dataset.end;
+            const formattedDate = new Date(endDate).toLocaleDateString('en-US', {
+                month: 'long', 
+                year: 'numeric'
+            });
+            document.getElementById('selected-end-date').textContent = formattedDate;
+        }
+    }
+    
+    applyQuarterSelection() {
+        const activeBtn = document.querySelector('.quarter-btn.active');
+        if (!activeBtn) {
+            this.showError('Please select a quarter');
+            return;
+        }
+        
+        // Update instance variables
+        this.currentQuarter = activeBtn.dataset.quarter;
+        this.currentYear = activeBtn.dataset.year;
+        this.endDate = activeBtn.dataset.end;
+        
+        // Update UI
+        const quarterDisplay = `${this.currentQuarter} ${this.currentYear}`;
+        document.getElementById('current-quarter').textContent = quarterDisplay;
+        
+        // Close modal
+        document.getElementById('quarter-selector-modal').classList.remove('show');
+        
+        // Show success message
+        this.showSuccessMessage(`Quarter updated to ${quarterDisplay}. Research will now analyze data from January 2022 to ${new Date(this.endDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.`);
+        
+        // Refresh data to reflect new quarter
+        this.loadOverviewData();
+        if (this.currentView === 'themes') {
+            this.loadThemes();
+        }
+    }
+    
+    getDateRangeForResearch() {
+        return {
+            startDate: this.startDate,
+            endDate: this.endDate,
+            quarter: `${this.currentQuarter}${this.currentYear}`,
+            quarterDisplay: `${this.currentQuarter} ${this.currentYear}`
+        };
     }
 }
 

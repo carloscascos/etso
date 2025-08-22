@@ -432,9 +432,23 @@ def execute_research():
         data = request.get_json()
         theme = data.get('theme')
         quarter = data.get('quarter', '2025Q1')
+        start_date = data.get('startDate', '2022-01-01')
+        end_date = data.get('endDate', '2025-03-31')
+        quarter_display = data.get('quarterDisplay', 'Q1 2025')
+        research_period = data.get('researchPeriod', 'January 2022 to March 2025')
         
         if not theme:
             return jsonify({'error': 'Theme is required'}), 400
+            
+        # Enhance theme with date range context
+        enhanced_theme = f"""
+Research Theme: {theme}
+
+Research Period: {research_period}
+Analysis Timeframe: {start_date} to {end_date}
+Target Quarter: {quarter_display}
+
+Context: This research should analyze maritime carbon regulations and container shipping data within the specified timeframe, focusing on trends, patterns, and regulatory impacts from {start_date} through {end_date}."""
         
         # Import here to avoid circular imports
         from main import ObservatorioETS
@@ -453,9 +467,9 @@ def execute_research():
                 # Initialize OBSERVATORIO ETS
                 observatorio = ObservatorioETS(system_config)
                 
-                # Run research
+                # Run research with enhanced theme containing date range
                 result = loop.run_until_complete(
-                    observatorio.run_quarterly_analysis(quarter, [theme])
+                    observatorio.run_quarterly_analysis(quarter, [enhanced_theme])
                 )
                 
                 # Extract research ID from result
