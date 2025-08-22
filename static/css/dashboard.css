@@ -223,13 +223,7 @@ body {
     letter-spacing: 0.5px;
 }
 
-/* Dashboard Grid */
-.dashboard-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-    gap: 24px;
-    margin-bottom: 24px;
-}
+/* Dashboard Grid - REMOVED, using dashboard-grid-two-col instead */
 
 /* Findings List */
 .findings-list {
@@ -1458,7 +1452,7 @@ pre code {
         gap: 12px;
     }
     
-    .dashboard-grid {
+    .dashboard-grid-two-col {
         grid-template-columns: 1fr;
         gap: 16px;
     }
