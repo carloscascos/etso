@@ -823,6 +823,83 @@ def execute_custom_query():
         logger.error(f"Error in execute_custom_query: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/regenerate-enhanced-query/<int:theme_id>', methods=['POST'])
+def regenerate_enhanced_query(theme_id):
+    """Regenerate enhanced query with deep research approach (Gemini-style)"""
+    try:
+        data = request.get_json()
+        user_guidance = data.get('user_guidance', '')
+        
+        if not user_guidance:
+            return jsonify({'error': 'User guidance is required'}), 400
+        
+        from langchain_openai import ChatOpenAI
+        from langchain_core.prompts import ChatPromptTemplate
+        
+        # Use GPT-4 for deep research enhancement
+        llm = ChatOpenAI(model="gpt-4o", temperature=0.3)
+        
+        enhancement_prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are a maritime research strategist creating comprehensive research plans.
+            Generate a deep, multi-layered research query similar to Google Gemini's deep research approach.
+            
+            Your enhanced query should include:
+            1. PRIMARY RESEARCH QUESTIONS (3-5 core questions)
+            2. SUPPORTING INVESTIGATIONS (5-8 detailed sub-queries)
+            3. DATA ANALYSIS REQUIREMENTS
+               - Vessel movement patterns
+               - Port call statistics
+               - Route optimization metrics
+               - Fuel consumption analysis
+               - Time-based comparisons
+            4. CROSS-VALIDATION POINTS
+               - Historical baseline comparisons
+               - Regional impact assessments
+               - Carrier-specific analysis
+            5. QUANTITATIVE METRICS TO EXTRACT
+               - Specific KPIs and thresholds
+               - Statistical significance tests
+               - Trend identification parameters
+            
+            Format the output as a structured, comprehensive research plan that can guide multiple research agents.
+            Be specific about data sources, time periods, and geographic regions.
+            Include both broad strategic questions and detailed tactical investigations."""),
+            ("human", """Original Research Theme: {user_guidance}
+            
+            Generate a comprehensive, deep research query that will thoroughly investigate this theme.
+            Make it detailed, actionable, and data-driven.""")
+        ])
+        
+        # Generate enhanced query
+        response = llm.invoke(
+            enhancement_prompt.format_messages(user_guidance=user_guidance)
+        )
+        
+        enhanced_query = response.content
+        
+        # Update the database with new enhanced query
+        with db_manager.get_etso_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE research_metadata SET
+                    user_guidance = %s,
+                    enhanced_query = %s,
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (user_guidance, enhanced_query, theme_id))
+            conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'theme_id': theme_id,
+            'user_guidance': user_guidance,
+            'enhanced_query': enhanced_query
+        })
+        
+    except Exception as e:
+        logger.error(f"Error regenerating enhanced query: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/update-theme/<int:theme_id>', methods=['PUT'])
 def update_theme(theme_id):
     """Update research theme metadata and prompts"""

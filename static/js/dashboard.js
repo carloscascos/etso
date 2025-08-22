@@ -398,18 +398,44 @@ class ObservatorioDashboard {
                 </div>
             </div>
             
-            <div style="margin-top: 16px;">
-                <div class="metadata-item">
-                    <span class="metadata-label">User Guidance</span>
-                    <span class="metadata-value">${metadata.user_guidance || 'No guidance provided'}</span>
+            <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                <div class="guidance-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span class="metadata-label">User Guidance</span>
+                        <button class="btn btn-sm btn-primary" onclick="dashboard.toggleGuidanceEdit(${metadata.id})">
+                            ✏️ Edit
+                        </button>
+                    </div>
+                    <div id="guidance-display-${metadata.id}" class="metadata-value">
+                        ${metadata.user_guidance || 'No guidance provided'}
+                    </div>
+                    <div id="guidance-edit-${metadata.id}" style="display: none;">
+                        <textarea id="guidance-textarea-${metadata.id}" class="form-textarea" rows="3" 
+                                  style="width: 100%; margin: 8px 0;">${metadata.user_guidance || ''}</textarea>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-sm btn-success" onclick="dashboard.saveAndRegenerateQuery(${metadata.id})">
+                                🔄 Save & Regenerate Enhanced Query
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="dashboard.cancelGuidanceEdit(${metadata.id})">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
             
             ${metadata.enhanced_query ? `
-                <div style="margin-top: 12px;">
-                    <div class="metadata-item">
-                        <span class="metadata-label">Enhanced Query</span>
-                        <span class="metadata-value">${metadata.enhanced_query}</span>
+                <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <div class="enhanced-query-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span class="metadata-label">Enhanced Query (AI-Generated Deep Research)</span>
+                            <span class="badge-mini" style="background: var(--info-color); color: white;">
+                                Gemini-style
+                            </span>
+                        </div>
+                        <div class="metadata-value" style="white-space: pre-wrap; background: #f8f9fa; padding: 12px; border-radius: 8px;">
+                            ${metadata.enhanced_query}
+                        </div>
                     </div>
                 </div>
             ` : ''}
@@ -1641,6 +1667,72 @@ class ObservatorioDashboard {
             
         } catch (error) {
             this.showError(`Error saving theme: ${error.message}`);
+        }
+    }
+    
+    toggleGuidanceEdit(themeId) {
+        const displayDiv = document.getElementById(`guidance-display-${themeId}`);
+        const editDiv = document.getElementById(`guidance-edit-${themeId}`);
+        
+        if (displayDiv && editDiv) {
+            displayDiv.style.display = 'none';
+            editDiv.style.display = 'block';
+        }
+    }
+    
+    cancelGuidanceEdit(themeId) {
+        const displayDiv = document.getElementById(`guidance-display-${themeId}`);
+        const editDiv = document.getElementById(`guidance-edit-${themeId}`);
+        
+        if (displayDiv && editDiv) {
+            displayDiv.style.display = 'block';
+            editDiv.style.display = 'none';
+        }
+    }
+    
+    async saveAndRegenerateQuery(themeId) {
+        const textarea = document.getElementById(`guidance-textarea-${themeId}`);
+        if (!textarea) return;
+        
+        const newGuidance = textarea.value.trim();
+        if (!newGuidance) {
+            this.showError('User guidance cannot be empty');
+            return;
+        }
+        
+        try {
+            // Show loading state
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '⏳ Regenerating...';
+            
+            // Call API to regenerate enhanced query
+            const response = await this.fetchAPI(`/api/regenerate-enhanced-query/${themeId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_guidance: newGuidance })
+            });
+            
+            if (response.success) {
+                this.showSuccess('Enhanced query regenerated successfully!');
+                
+                // Reload the research details to show updated content
+                await this.loadResearchDetails(themeId);
+            } else {
+                throw new Error(response.error || 'Failed to regenerate enhanced query');
+            }
+            
+        } catch (error) {
+            console.error('Error regenerating enhanced query:', error);
+            this.showError(`Failed to regenerate: ${error.message}`);
+        } finally {
+            // Reset button state
+            const button = event.target;
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '🔄 Save & Regenerate Enhanced Query';
+            }
         }
     }
     
