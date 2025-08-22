@@ -1722,7 +1722,7 @@ class ObservatorioDashboard {
             const result = await response.json();
             
             if (result.success) {
-                this.showSuccess('Research execution started successfully!');
+                this.showSuccessMessage('Research execution started successfully!');
                 
                 // If we got a research ID, start monitoring
                 if (result.research_id && result.research_id !== 'pending') {
@@ -1779,7 +1779,7 @@ class ObservatorioDashboard {
             const result = await response.json();
             
             if (result.success) {
-                this.showSuccess('Research prompt saved successfully!');
+                this.showSuccessMessage('Research prompt saved successfully!');
                 
                 // Update the display
                 const displayDiv = document.getElementById(`prompt-display-${themeId}`);
