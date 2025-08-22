@@ -467,9 +467,14 @@ Context: This research should analyze maritime carbon regulations and container 
                 # Initialize OBSERVATORIO ETS
                 observatorio = ObservatorioETS(system_config)
                 
-                # Run research with enhanced theme containing date range
+                # Run enhanced research with date range and comprehensive source tracking
                 result = loop.run_until_complete(
-                    observatorio.run_quarterly_analysis(quarter, [enhanced_theme])
+                    observatorio.run_enhanced_research_with_dates(
+                        quarter=quarter,
+                        user_themes=[enhanced_theme],
+                        start_date=start_date,
+                        end_date=end_date
+                    )
                 )
                 
                 # Extract research ID from result

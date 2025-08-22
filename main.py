@@ -18,6 +18,7 @@ from config import SystemConfig, config
 from database import create_database_manager, DatabaseManager
 from storage import create_storage_manager, ResearchStorageManager, ResearchFinding
 from validation import DualDatabaseValidator
+from enhanced_research import EnhancedMaritimeResearchAgent, ReportGenerationSystem, ComprehensiveResearchResult
 
 # Configure logging
 logging.basicConfig(
@@ -382,11 +383,164 @@ class ObservatorioETS:
         
         # Initialize processors
         self.theme_processor = ResearchThemeProcessor(self.llm)
-        self.research_agent = ResearchAgent(self.llm)
+        self.research_agent = ResearchAgent(self.llm)  # Legacy agent
+        self.enhanced_research_agent = EnhancedMaritimeResearchAgent(self.db_manager, self.llm)  # New enhanced agent
+        self.report_generator = ReportGenerationSystem(self.db_manager, self.llm)
         self.validator = DualDatabaseValidator(self.db_manager, self.llm)
         self.insight_discovery = DataInsightDiscovery(self.db_manager)
         
         logger.info("🚀 OBSERVATORIO ETS initialized successfully")
+    
+    async def run_enhanced_research_with_dates(
+        self, 
+        quarter: str, 
+        user_themes: List[str], 
+        start_date: str, 
+        end_date: str
+    ) -> Dict[str, Any]:
+        """Run enhanced research analysis with specific date ranges and comprehensive source tracking"""
+        
+        logger.info(f"🎯 Starting enhanced research analysis for {quarter}")
+        logger.info(f"📅 Date range: {start_date} to {end_date}")
+        logger.info(f"📋 User themes: {user_themes}")
+        
+        start_time = datetime.now()
+        enhanced_results = []
+        
+        try:
+            # Phase 1: Enhanced research for each theme
+            logger.info("🔄 Phase 1: Enhanced research with comprehensive source tracking")
+            for i, theme in enumerate(user_themes, 1):
+                logger.info(f"🔬 Processing theme {i}/{len(user_themes)}: {theme[:50]}...")
+                
+                # Use enhanced research agent
+                comprehensive_result = await self.enhanced_research_agent.conduct_comprehensive_research(
+                    theme=theme,
+                    quarter=quarter,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                enhanced_results.append(comprehensive_result)
+                
+                # Store enhanced research finding
+                finding = ResearchFinding(
+                    quarter=quarter,
+                    theme_type=self._classify_theme_type_from_string(theme),
+                    user_guidance=theme,
+                    enhanced_query=f"Enhanced research with date range {start_date} to {end_date}: {theme}",
+                    research_content=comprehensive_result.final_findings,
+                    validation_targets=comprehensive_result.related_themes,
+                    expected_outputs=comprehensive_result.keywords,
+                    research_scope={
+                        'start_date': start_date,
+                        'end_date': end_date,
+                        'research_steps': len(comprehensive_result.research_steps),
+                        'sources_count': len(comprehensive_result.all_sources),
+                        'confidence_score': comprehensive_result.confidence_score
+                    }
+                )
+                
+                # Store in database and vector store
+                chroma_id, research_id = self.storage_manager.store_research_finding(finding)
+                logger.info(f"✅ Stored enhanced research finding: {research_id}")
+            
+            # Phase 2: Generate comprehensive report with historical context
+            logger.info("🔄 Phase 2: Generating quarterly report with historical analysis")
+            quarterly_report = await self.report_generator.generate_quarterly_report_with_history(
+                quarter, enhanced_results
+            )
+            
+            # Phase 3: Store quarterly report
+            logger.info("🔄 Phase 3: Storing quarterly report")
+            await self._store_quarterly_report(quarterly_report)
+            
+            # Calculate execution metrics
+            execution_time = (datetime.now() - start_time).total_seconds()
+            total_sources = sum(len(result.all_sources) for result in enhanced_results)
+            average_confidence = sum(result.confidence_score for result in enhanced_results) / len(enhanced_results) if enhanced_results else 0
+            
+            logger.info(f"✅ Enhanced research analysis completed in {execution_time:.1f}s")
+            
+            return {
+                'success': True,
+                'quarter': quarter,
+                'date_range': f"{start_date} to {end_date}",
+                'execution_time_seconds': execution_time,
+                'summary': {
+                    'total_themes': len(user_themes),
+                    'enhanced_results': len(enhanced_results),
+                    'total_sources': total_sources,
+                    'average_confidence': average_confidence,
+                    'research_steps': sum(len(result.research_steps) for result in enhanced_results),
+                    'keywords_extracted': sum(len(result.keywords) for result in enhanced_results)
+                },
+                'quarterly_report': quarterly_report,
+                'research_findings': [
+                    {
+                        'theme': result.theme,
+                        'confidence': result.confidence_score,
+                        'sources_count': len(result.all_sources),
+                        'steps_count': len(result.research_steps),
+                        'keywords': result.keywords,
+                        'related_themes': result.related_themes,
+                        'findings_preview': result.final_findings[:200] + '...' if len(result.final_findings) > 200 else result.final_findings
+                    }
+                    for result in enhanced_results
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Enhanced research analysis failed: {e}")
+            execution_time = (datetime.now() - start_time).total_seconds()
+            
+            return {
+                'success': False,
+                'quarter': quarter,
+                'date_range': f"{start_date} to {end_date}",
+                'execution_time_seconds': execution_time,
+                'error': str(e),
+                'partial_results': len(enhanced_results)
+            }
+    
+    async def _store_quarterly_report(self, report: Dict[str, Any]):
+        """Store quarterly report in database"""
+        try:
+            with self.db_manager.get_etso_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO quarterly_reports 
+                    (quarter, report_content, key_findings, total_findings, average_confidence, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (
+                    report['quarter'],
+                    report['report_content'],
+                    report['report_content'][:500],  # Extract key findings from content
+                    report.get('research_count', 0),
+                    report.get('average_confidence', 0.0),
+                    datetime.now()
+                ))
+                conn.commit()
+                logger.info(f"✅ Stored quarterly report for {report['quarter']}")
+                
+        except Exception as e:
+            logger.error(f"Failed to store quarterly report: {e}")
+    
+    def _classify_theme_type_from_string(self, theme: str) -> str:
+        """Classify theme type from string input"""
+        theme_lower = theme.lower()
+        
+        if any(keyword in theme_lower for keyword in ['ets', 'carbon', 'emission', 'regulation']):
+            return 'eu_ets'
+        elif any(keyword in theme_lower for keyword in ['route', 'routing', 'navigation']):
+            return 'routes'
+        elif any(keyword in theme_lower for keyword in ['geopolitical', 'political', 'conflict', 'sanctions']):
+            return 'geopolitical'
+        elif any(keyword in theme_lower for keyword in ['carrier', 'shipping line', 'operator']):
+            return 'carrier'
+        elif any(keyword in theme_lower for keyword in ['region', 'regional', 'area', 'zone']):
+            return 'regional'
+        else:
+            return 'data_insight'
     
     async def run_quarterly_analysis(self, quarter: str, user_themes: List[str]) -> Dict[str, Any]:
         """Run complete quarterly analysis with user guidance"""
