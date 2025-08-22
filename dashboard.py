@@ -10,6 +10,7 @@ import json
 from database import create_database_manager, ETSODataAccess
 from storage import ResearchStorageManager
 from config import config as system_config
+from sql_builder import ValidationSQLBuilder
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +23,17 @@ CORS(app)
 db_manager = create_database_manager(system_config)
 etso_access = ETSODataAccess(db_manager)
 storage_manager = ResearchStorageManager(db_manager, system_config)
+
+# Initialize SQL builder
+from langchain_openai import ChatOpenAI
+llm_config = system_config.llm.OPENAI_CONFIG
+llm = ChatOpenAI(
+    api_key=llm_config['api_key'],
+    model=llm_config['model'],
+    temperature=0.1,  # Lower temperature for more consistent SQL generation
+    max_tokens=llm_config['max_tokens']
+)
+sql_builder = ValidationSQLBuilder(llm)
 
 @app.route('/')
 def index():
@@ -1329,6 +1341,117 @@ def generate_claims(theme_id):
         
     except Exception as e:
         logger.error(f"Error generating claims for theme {theme_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/build-sql', methods=['POST'])
+def build_sql_from_validation():
+    """Build SQL query from validation logic"""
+    try:
+        data = request.get_json()
+        validation_logic = data.get('validation_logic')
+        
+        if not validation_logic:
+            return jsonify({'error': 'validation_logic is required'}), 400
+        
+        # Build SQL query asynchronously
+        import asyncio
+        
+        def run_sql_builder():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(
+                    sql_builder.build_sql_from_validation_logic(validation_logic)
+                )
+                return result
+            finally:
+                loop.close()
+        
+        result = run_sql_builder()
+        
+        return jsonify({
+            'success': True,
+            'query': result.query,
+            'explanation': result.explanation,
+            'confidence': result.confidence,
+            'query_type': result.query_type,
+            'components': {
+                'claim_type': result.components.claim_type,
+                'vessel_filter': result.components.vessel_filter,
+                'route_filter': result.components.route_filter,
+                'port_filter': result.components.port_filter,
+                'period_filter': result.components.period_filter,
+                'metric': result.components.metric,
+                'aggregation': result.components.aggregation,
+                'comparison': result.components.comparison
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error building SQL from validation logic: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sql-examples')
+def get_sql_examples():
+    """Get example validation logics for SQL building"""
+    try:
+        examples = sql_builder.get_example_validation_logics()
+        return jsonify({
+            'success': True,
+            'examples': examples
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting SQL examples: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/execute-custom-sql', methods=['POST'])
+def execute_custom_sql():
+    """Execute a custom SQL query against the traffic database"""
+    try:
+        data = request.get_json()
+        sql_query = data.get('query')
+        
+        if not sql_query:
+            return jsonify({'error': 'query is required'}), 400
+        
+        # Basic SQL injection protection
+        sql_lower = sql_query.lower()
+        forbidden_keywords = ['drop', 'delete', 'insert', 'update', 'alter', 'create', 'truncate']
+        
+        if any(keyword in sql_lower for keyword in forbidden_keywords):
+            return jsonify({'error': 'Query contains forbidden operations. Only SELECT queries are allowed.'}), 400
+        
+        # Execute query with limit
+        if 'limit' not in sql_lower:
+            sql_query += ' LIMIT 100'
+        
+        # Execute against traffic database
+        with db_manager.get_traffic_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql_query)
+            
+            # Get column names
+            columns = [desc[0] for desc in cursor.description]
+            
+            # Fetch results
+            rows = cursor.fetchall()
+            
+            # Format results
+            results = []
+            for row in rows:
+                results.append(dict(zip(columns, row)))
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'columns': columns,
+            'row_count': len(results),
+            'query': sql_query
+        })
+        
+    except Exception as e:
+        logger.error(f"Error executing custom SQL: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

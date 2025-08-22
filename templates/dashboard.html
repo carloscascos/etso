@@ -22,7 +22,7 @@
                 <div class="header-stats">
                     <span id="current-quarter" class="quarter-badge clickable" onclick="dashboard.showQuarterSelector()">Q1 2025</span>
                     <span id="last-update" class="last-update">Last update: --</span>
-                    <span class="version-badge">v1.3.0</span>
+                    <span class="version-badge">v1.4.0</span>
                 </div>
             </div>
         </header>
@@ -133,6 +133,9 @@
                                 <span class="badge" id="claims-count">0</span>
                                 <button id="add-validation-btn" class="btn btn-sm btn-success" onclick="dashboard.showAddValidationModal()">
                                     ➕ Add Validation Query
+                                </button>
+                                <button id="build-sql-btn" class="btn btn-sm btn-info" onclick="dashboard.showSQLBuilderModal()">
+                                    🔧 Build SQL from Logic
                                 </button>
                             </div>
                         </div>
@@ -502,6 +505,128 @@
                         <button class="btn btn-secondary" onclick="document.getElementById('quarter-selector-modal').classList.remove('show')">
                             Cancel
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SQL Builder Modal -->
+    <div id="sql-builder-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>🔧 Build SQL from Validation Logic</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="sql-builder-container">
+                    <!-- Validation Logic Input -->
+                    <div class="builder-section">
+                        <div class="builder-section-header">
+                            <h4>📝 Validation Logic</h4>
+                            <button id="load-example-btn" class="btn btn-sm btn-secondary" onclick="dashboard.loadExampleValidationLogic()">
+                                💡 Load Example
+                            </button>
+                        </div>
+                        
+                        <textarea id="validation-logic-input" class="form-textarea" rows="4" 
+                                  placeholder="Enter natural language validation logic...
+
+Example: 'Check if Maersk vessels increased port calls to Rotterdam in Q1 2025 compared to Q4 2024'
+
+or
+
+'Analyze transit times for Asia-Europe trade routes to identify delays during 2024'"></textarea>
+                        
+                        <div class="builder-actions">
+                            <button id="build-sql-query-btn" class="btn btn-primary" onclick="dashboard.buildSQLFromLogic()">
+                                🔧 Build SQL Query
+                            </button>
+                            <button id="load-examples-btn" class="btn btn-secondary" onclick="dashboard.loadValidationExamples()">
+                                📚 View Examples
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Generated SQL Section -->
+                    <div class="builder-section">
+                        <div class="builder-section-header">
+                            <h4>🗃️ Generated SQL Query</h4>
+                            <div class="query-actions">
+                                <span id="query-confidence" class="confidence-badge"></span>
+                                <button id="copy-generated-sql" class="btn btn-sm btn-secondary hidden" onclick="dashboard.copyGeneratedSQL()">
+                                    📋 Copy SQL
+                                </button>
+                                <button id="execute-generated-sql" class="btn btn-sm btn-success hidden" onclick="dashboard.executeGeneratedSQL()">
+                                    ▶️ Execute Query
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="generated-sql-container" class="hidden">
+                            <div class="query-explanation">
+                                <strong>Query Explanation:</strong>
+                                <p id="sql-explanation"></p>
+                            </div>
+                            
+                            <div class="query-components">
+                                <strong>Query Components:</strong>
+                                <div id="sql-components" class="components-grid">
+                                    <!-- Components will be populated here -->
+                                </div>
+                            </div>
+                            
+                            <div class="generated-sql-display">
+                                <pre><code id="generated-sql-code" class="language-sql"></code></pre>
+                            </div>
+                        </div>
+                        
+                        <div id="sql-building-status" class="hidden">
+                            <div class="loading">🔧 Building SQL query from validation logic...</div>
+                        </div>
+                        
+                        <div id="sql-build-error" class="error hidden"></div>
+                    </div>
+                    
+                    <!-- Query Results Section -->
+                    <div class="builder-section">
+                        <div class="builder-section-header">
+                            <h4>📊 Query Results</h4>
+                            <div class="results-actions">
+                                <span id="results-count-display"></span>
+                                <button id="copy-results" class="btn btn-sm btn-secondary hidden" onclick="dashboard.copyQueryResults()">
+                                    📋 Copy Results
+                                </button>
+                                <button id="export-results" class="btn btn-sm btn-info hidden" onclick="dashboard.exportQueryResults()">
+                                    📤 Export CSV
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="sql-results-container" class="hidden">
+                            <div class="table-wrapper">
+                                <table id="sql-results-table" class="results-table">
+                                    <!-- Results will be populated here -->
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div id="sql-execution-status" class="hidden">
+                            <div class="loading">⏳ Executing SQL query...</div>
+                        </div>
+                        
+                        <div id="sql-execution-error" class="error hidden"></div>
+                    </div>
+                    
+                    <!-- Examples Section -->
+                    <div class="builder-section" id="examples-section">
+                        <div class="builder-section-header">
+                            <h4>💡 Example Validation Logic</h4>
+                        </div>
+                        
+                        <div id="validation-examples" class="examples-grid hidden">
+                            <!-- Examples will be populated here -->
+                        </div>
                     </div>
                 </div>
             </div>

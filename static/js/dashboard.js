@@ -2008,6 +2008,343 @@ class ObservatorioDashboard {
             quarterDisplay: `${this.currentQuarter} ${this.currentYear}`
         };
     }
+    
+    // SQL Builder Methods
+    showSQLBuilderModal() {
+        document.getElementById('sql-builder-modal').classList.add('show');
+        this.loadValidationExamples();
+    }
+    
+    async loadValidationExamples() {
+        try {
+            const response = await fetch('/api/sql-examples');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.displayValidationExamples(data.examples);
+            } else {
+                this.showError('Failed to load validation examples');
+            }
+        } catch (error) {
+            this.showError(`Error loading examples: ${error.message}`);
+        }
+    }
+    
+    displayValidationExamples(examples) {
+        const container = document.getElementById('validation-examples');
+        const examplesSection = document.getElementById('examples-section');
+        
+        if (!examples || examples.length === 0) {
+            container.innerHTML = '<p class="text-muted">No examples available</p>';
+            return;
+        }
+        
+        const examplesHTML = examples.map(example => `
+            <div class="example-item" onclick="dashboard.selectExample('${example.logic.replace(/'/g, "\\'")}')">
+                <div class="example-logic">${example.logic}</div>
+                <div class="example-type">${example.type}</div>
+            </div>
+        `).join('');
+        
+        container.innerHTML = examplesHTML;
+        container.classList.remove('hidden');
+        examplesSection.classList.remove('hidden');
+    }
+    
+    selectExample(logic) {
+        document.getElementById('validation-logic-input').value = logic;
+        document.getElementById('examples-section').classList.add('hidden');
+    }
+    
+    loadExampleValidationLogic() {
+        const examples = [
+            "Check if Maersk vessels increased port calls to Rotterdam in Q1 2025 compared to Q4 2024",
+            "Analyze transit times for Asia-Europe trade routes to identify delays during 2024",
+            "Validate CO2 emissions increase for container vessels operating transpacific routes",
+            "Examine route pattern changes for MSC vessels avoiding Suez Canal"
+        ];
+        
+        const randomExample = examples[Math.floor(Math.random() * examples.length)];
+        document.getElementById('validation-logic-input').value = randomExample;
+    }
+    
+    async buildSQLFromLogic() {
+        const validationLogic = document.getElementById('validation-logic-input').value.trim();
+        
+        if (!validationLogic) {
+            this.showError('Please enter validation logic');
+            return;
+        }
+        
+        // Show loading state
+        this.showSQLBuildingStatus(true);
+        this.hideSQLResults();
+        this.hideSQLError();
+        
+        try {
+            const response = await fetch('/api/build-sql', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ validation_logic: validationLogic })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.displayGeneratedSQL(data);
+                this.showSuccessMessage('SQL query generated successfully!');
+            } else {
+                this.showSQLError(data.error || 'Failed to build SQL query');
+            }
+            
+        } catch (error) {
+            this.showSQLError(`Error building SQL: ${error.message}`);
+        } finally {
+            this.showSQLBuildingStatus(false);
+        }
+    }
+    
+    displayGeneratedSQL(data) {
+        // Show container
+        document.getElementById('generated-sql-container').classList.remove('hidden');
+        
+        // Set explanation
+        document.getElementById('sql-explanation').textContent = data.explanation;
+        
+        // Set confidence badge
+        const confidenceBadge = document.getElementById('query-confidence');
+        const confidencePercent = Math.round(data.confidence * 100);
+        confidenceBadge.textContent = `${confidencePercent}% confidence`;
+        confidenceBadge.className = 'confidence-badge';
+        
+        if (data.confidence >= 0.8) {
+            confidenceBadge.classList.add('high');
+        } else if (data.confidence >= 0.6) {
+            confidenceBadge.classList.add('medium');
+        } else {
+            confidenceBadge.classList.add('low');
+        }
+        
+        // Display components
+        this.displayQueryComponents(data.components);
+        
+        // Display SQL code
+        document.getElementById('generated-sql-code').textContent = data.query;
+        
+        // Store query for later execution
+        this.currentGeneratedSQL = data.query;
+        
+        // Show action buttons
+        document.getElementById('copy-generated-sql').classList.remove('hidden');
+        document.getElementById('execute-generated-sql').classList.remove('hidden');
+        
+        // Apply syntax highlighting if available
+        if (window.Prism) {
+            Prism.highlightAll();
+        }
+    }
+    
+    displayQueryComponents(components) {
+        const container = document.getElementById('sql-components');
+        const componentItems = [];
+        
+        const componentFields = [
+            { key: 'claim_type', label: 'Query Type' },
+            { key: 'vessel_filter', label: 'Vessel Filter' },
+            { key: 'route_filter', label: 'Route Filter' },
+            { key: 'port_filter', label: 'Port Filter' },
+            { key: 'period_filter', label: 'Period Filter' },
+            { key: 'metric', label: 'Metric' },
+            { key: 'aggregation', label: 'Aggregation' },
+            { key: 'comparison', label: 'Comparison' }
+        ];
+        
+        componentFields.forEach(field => {
+            const value = components[field.key];
+            if (value) {
+                componentItems.push(`
+                    <div class="component-item">
+                        <span class="component-label">${field.label}:</span>
+                        <span class="component-value">${value}</span>
+                    </div>
+                `);
+            }
+        });
+        
+        container.innerHTML = componentItems.join('');
+    }
+    
+    async executeGeneratedSQL() {
+        if (!this.currentGeneratedSQL) {
+            this.showError('No SQL query to execute');
+            return;
+        }
+        
+        // Show loading state
+        this.showSQLExecutionStatus(true);
+        this.hideSQLExecutionError();
+        this.hideSQLResults();
+        
+        try {
+            const response = await fetch('/api/execute-custom-sql', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: this.currentGeneratedSQL })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.displaySQLResults(data);
+                this.showSuccessMessage(`Query executed successfully! ${data.row_count} rows returned.`);
+            } else {
+                this.showSQLExecutionError(data.error || 'Failed to execute SQL query');
+            }
+            
+        } catch (error) {
+            this.showSQLExecutionError(`Error executing SQL: ${error.message}`);
+        } finally {
+            this.showSQLExecutionStatus(false);
+        }
+    }
+    
+    displaySQLResults(data) {
+        const resultsContainer = document.getElementById('sql-results-container');
+        const resultsTable = document.getElementById('sql-results-table');
+        const resultsCountDisplay = document.getElementById('results-count-display');
+        
+        // Update count display
+        resultsCountDisplay.textContent = `${data.row_count} rows returned`;
+        
+        if (data.results && data.results.length > 0) {
+            // Create table HTML
+            const headers = data.columns.map(col => `<th>${col}</th>`).join('');
+            const rows = data.results.map(row => {
+                const cells = data.columns.map(col => {
+                    const value = row[col];
+                    return `<td>${value !== null ? value : ''}</td>`;
+                }).join('');
+                return `<tr>${cells}</tr>`;
+            }).join('');
+            
+            resultsTable.innerHTML = `
+                <thead><tr>${headers}</tr></thead>
+                <tbody>${rows}</tbody>
+            `;
+            
+            // Store results for copying/export
+            this.currentQueryResults = data;
+            
+            // Show results and action buttons
+            resultsContainer.classList.remove('hidden');
+            document.getElementById('copy-results').classList.remove('hidden');
+            document.getElementById('export-results').classList.remove('hidden');
+        } else {
+            resultsTable.innerHTML = '<tbody><tr><td colspan="100%">No results returned</td></tr></tbody>';
+            resultsContainer.classList.remove('hidden');
+        }
+    }
+    
+    copyGeneratedSQL() {
+        if (this.currentGeneratedSQL) {
+            navigator.clipboard.writeText(this.currentGeneratedSQL).then(() => {
+                this.showSuccessMessage('SQL query copied to clipboard!');
+            }).catch(err => {
+                this.showError('Failed to copy SQL query');
+            });
+        }
+    }
+    
+    copyQueryResults() {
+        if (this.currentQueryResults && this.currentQueryResults.results) {
+            const csvContent = this.convertResultsToCSV(this.currentQueryResults);
+            navigator.clipboard.writeText(csvContent).then(() => {
+                this.showSuccessMessage('Results copied to clipboard!');
+            }).catch(err => {
+                this.showError('Failed to copy results');
+            });
+        }
+    }
+    
+    exportQueryResults() {
+        if (this.currentQueryResults && this.currentQueryResults.results) {
+            const csvContent = this.convertResultsToCSV(this.currentQueryResults);
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `query_results_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            this.showSuccessMessage('Results exported as CSV file!');
+        }
+    }
+    
+    convertResultsToCSV(data) {
+        const headers = data.columns.join(',');
+        const rows = data.results.map(row => {
+            return data.columns.map(col => {
+                const value = row[col];
+                // Escape commas and quotes in CSV
+                if (value === null || value === undefined) return '';
+                const stringValue = String(value);
+                if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+                    return `"${stringValue.replace(/"/g, '""')}"`;
+                }
+                return stringValue;
+            }).join(',');
+        }).join('\n');
+        
+        return headers + '\n' + rows;
+    }
+    
+    showSQLBuildingStatus(show) {
+        const statusElement = document.getElementById('sql-building-status');
+        if (show) {
+            statusElement.classList.remove('hidden');
+            document.getElementById('generated-sql-container').classList.add('hidden');
+        } else {
+            statusElement.classList.add('hidden');
+        }
+    }
+    
+    showSQLExecutionStatus(show) {
+        const statusElement = document.getElementById('sql-execution-status');
+        if (show) {
+            statusElement.classList.remove('hidden');
+        } else {
+            statusElement.classList.add('hidden');
+        }
+    }
+    
+    showSQLError(message) {
+        const errorElement = document.getElementById('sql-build-error');
+        errorElement.textContent = message;
+        errorElement.classList.remove('hidden');
+    }
+    
+    showSQLExecutionError(message) {
+        const errorElement = document.getElementById('sql-execution-error');
+        errorElement.textContent = message;
+        errorElement.classList.remove('hidden');
+    }
+    
+    hideSQLResults() {
+        document.getElementById('sql-results-container').classList.add('hidden');
+        document.getElementById('copy-results').classList.add('hidden');
+        document.getElementById('export-results').classList.add('hidden');
+    }
+    
+    hideSQLError() {
+        document.getElementById('sql-build-error').classList.add('hidden');
+    }
+    
+    hideSQLExecutionError() {
+        document.getElementById('sql-execution-error').classList.add('hidden');
+    }
 }
 
 // Initialize dashboard when DOM is loaded

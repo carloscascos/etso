@@ -1627,3 +1627,214 @@ pre code {
         gap: 12px;
     }
 }
+
+/* SQL Builder Styles */
+.sql-builder-container {
+    padding: 20px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.builder-section {
+    margin-bottom: 32px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-primary);
+}
+
+.builder-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+.builder-section-header h4 {
+    margin: 0;
+    color: var(--primary-color);
+    font-size: var(--font-size-lg);
+}
+
+.builder-actions, .query-actions, .results-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.confidence-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: white;
+    background: var(--secondary-color);
+}
+
+.confidence-badge.high {
+    background: var(--success-color);
+}
+
+.confidence-badge.medium {
+    background: var(--warning-color);
+}
+
+.confidence-badge.low {
+    background: var(--danger-color);
+}
+
+.query-explanation, .query-components {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.query-explanation p {
+    margin: 8px 0 0 0;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.components-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.component-item {
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-sm);
+}
+
+.component-label {
+    font-weight: 600;
+    color: var(--primary-color);
+    display: block;
+    margin-bottom: 4px;
+}
+
+.component-value {
+    color: var(--text-secondary);
+}
+
+.generated-sql-display {
+    padding: 20px;
+}
+
+.generated-sql-display pre {
+    background: #f8f9fa;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 16px;
+    overflow-x: auto;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.generated-sql-display code {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+}
+
+.examples-grid {
+    display: grid;
+    gap: 16px;
+    padding: 20px;
+}
+
+.example-item {
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.example-item:hover {
+    border-color: var(--primary-color);
+    background: rgba(0, 102, 204, 0.05);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
+.example-logic {
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.example-type {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sql-results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+}
+
+.sql-results-table th,
+.sql-results-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sql-results-table th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+    color: var(--primary-color);
+    position: sticky;
+    top: 0;
+}
+
+.sql-results-table tr:hover {
+    background: var(--bg-secondary);
+}
+
+.table-wrapper {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+#results-count-display {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .sql-builder-container {
+        padding: 16px;
+        max-height: 90vh;
+    }
+    
+    .builder-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px 16px;
+    }
+    
+    .builder-actions,
+    .query-actions,
+    .results-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .components-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -250,3 +250,4 @@ dashboard.py             # Flask backend with comprehensive API
 - System handles 10+ concurrent research themes
 - Maintains 100,000+ stored research findings with 2+ years historical data
 - always show the public url
+- mem show public urls only
