@@ -70,8 +70,7 @@ class ChromaDBManager:
             
             # Get or create collection
             self.collection = self.client.get_or_create_collection(
-                name=self.chroma_config['collection_name'],
-                embedding_function=self.embeddings.embed_query
+                name=self.chroma_config['collection_name']
             )
             
         except Exception as e:

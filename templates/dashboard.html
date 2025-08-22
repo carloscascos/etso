@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OBSERVATORIO ETS - Research Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-sql.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <h1>🚢 OBSERVATORIO ETS</h1>
+            <span class="subtitle">Maritime Carbon Intelligence Dashboard</span>
+            <div class="header-actions">
+                <button id="view-themes-btn" class="btn btn-primary">View All Themes</button>
+                <div class="header-stats">
+                    <span id="current-quarter" class="quarter-badge">Q1 2025</span>
+                    <span id="last-update" class="last-update">Last update: --</span>
+                    <span class="version-badge">v1.0.1</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-view="overview">Overview</button>
+            <button class="nav-tab" data-view="themes">Research Themes</button>
+            <button class="nav-tab" data-view="research">Research Details</button>
+        </nav>
+
+        <!-- Overview Section (Default) -->
+        <div id="overview-view" class="view active">
+            <!-- Summary Cards -->
+            <section class="summary-cards">
+                <div class="card stat-card">
+                    <div class="card-header">Total Findings</div>
+                    <div class="card-value" id="total-findings">0</div>
+                    <div class="card-subtitle">Research items</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="card-header">Completed</div>
+                    <div class="card-value success" id="completed-findings">0</div>
+                    <div class="card-subtitle">Validated</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="card-header">In Progress</div>
+                    <div class="card-value warning" id="validating-findings">0</div>
+                    <div class="card-subtitle">Validating</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="card-header">Avg Confidence</div>
+                    <div class="card-value" id="avg-confidence">0%</div>
+                    <div class="card-subtitle">Score</div>
+                </div>
+            </section>
+
+            <!-- Main Content Grid -->
+            <div class="dashboard-grid">
+                <!-- Recent Research Findings -->
+                <section class="card findings-section">
+                    <div class="card-header">
+                        <h2>📊 Recent Research Findings</h2>
+                        <span class="badge" id="findings-count">0</span>
+                    </div>
+                    <div class="findings-list" id="findings-list">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </section>
+
+                <!-- Validation Status -->
+                <section class="card validation-section">
+                    <div class="card-header">
+                        <h2>✅ Validation Status</h2>
+                        <div style="display: flex; gap: 8px;">
+                            <span id="pending-validations" class="badge" style="background: #ffc107; color: #000;">0 pending</span>
+                            <button id="run-validation-btn" class="btn btn-sm btn-success" onclick="dashboard.runBulkValidation()">
+                                🔄 Run Analysis
+                            </button>
+                        </div>
+                    </div>
+                    <canvas id="validation-chart"></canvas>
+                    <div class="validation-stats" id="validation-stats">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                    <div id="validation-progress" class="execution-status running hidden" style="margin: 12px;">
+                        <span class="spinner"></span>
+                        <span>Running validation analysis...</span>
+                    </div>
+                </section>
+
+                <!-- System Health -->
+                <section class="card health-section">
+                    <div class="card-header">
+                        <h2>🔧 System Health</h2>
+                    </div>
+                    <div class="health-indicators" id="health-indicators">
+                        <div class="health-item">
+                            <span class="indicator" id="traffic-db-status"></span>
+                            <span class="health-label">Traffic DB</span>
+                        </div>
+                        <div class="health-item">
+                            <span class="indicator" id="etso-db-status"></span>
+                            <span class="health-label">ETSO DB</span>
+                        </div>
+                        <div class="health-item">
+                            <span class="indicator" id="chromadb-status"></span>
+                            <span class="health-label">ChromaDB</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- Themes View -->
+        <div id="themes-view" class="view">
+            <div class="themes-container">
+                <div class="themes-header">
+                    <h2>📚 Research Themes by Category</h2>
+                    <div class="search-bar">
+                        <input type="text" id="theme-search" placeholder="Search themes...">
+                        <select id="status-filter">
+                            <option value="">All Status</option>
+                            <option value="completed">Completed</option>
+                            <option value="validating">Validating</option>
+                            <option value="pending">Pending</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="themes-grid" class="themes-grid">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Research Details View -->
+        <div id="research-view" class="view">
+            <div class="research-container">
+                <div class="research-header">
+                    <button id="back-to-themes" class="btn btn-secondary">← Back to Themes</button>
+                    <h2 id="research-title">Research Details</h2>
+                </div>
+                
+                <div class="research-content">
+                    <!-- Research Metadata -->
+                    <div class="card research-metadata">
+                        <div class="card-header">
+                            <h3>📋 Research Information</h3>
+                        </div>
+                        <div id="research-metadata-content">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Research Content -->
+                    <div class="card research-content-section">
+                        <div class="card-header">
+                            <h3>📄 Research Content</h3>
+                        </div>
+                        <div id="research-full-content" class="research-text">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Validation Claims -->
+                    <div class="card claims-section">
+                        <div class="card-header">
+                            <h3>🔍 Validation Claims</h3>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span class="badge" id="claims-count">0</span>
+                                <button id="add-validation-btn" class="btn btn-sm btn-success" onclick="dashboard.showAddValidationModal()">
+                                    ➕ Add Validation Query
+                                </button>
+                            </div>
+                        </div>
+                        <div id="claims-list">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SQL Query Modal -->
+    <div id="query-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>🗃️ SQL Validation Query & Results</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="query-section">
+                    <h4>Claim Being Validated:</h4>
+                    <div id="modal-claim-text" class="claim-text"></div>
+                    
+                    <h4>Validation Logic:</h4>
+                    <div id="modal-validation-logic" class="claim-text" style="background: #e8f4fd; border-left-color: #17a2b8;"></div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <h4 style="margin: 0;">SQL Query:</h4>
+                        <div style="display: flex; gap: 8px;">
+                            <button id="paste-query-btn" class="btn btn-sm btn-info" onclick="dashboard.pasteQuery()">
+                                📥 Paste Query
+                            </button>
+                            <button id="copy-query-btn" class="btn btn-sm btn-secondary" onclick="dashboard.copyQuery()">
+                                📋 Copy Query
+                            </button>
+                            <button id="edit-query-btn" class="btn btn-sm btn-warning" onclick="dashboard.toggleEditQuery()">
+                                ✏️ Edit Query
+                            </button>
+                        </div>
+                    </div>
+                    <div id="query-display-container">
+                        <pre id="query-readonly"><code id="modal-sql-query" class="language-sql"></code></pre>
+                        <textarea id="query-editor" class="query-editor hidden" placeholder="Paste your SQL query here..."></textarea>
+                    </div>
+                    
+                    <div class="query-meta">
+                        <span>Data Points Found: <strong id="modal-data-points">--</strong></span>
+                        <span>Confidence: <strong id="modal-confidence">--</strong></span>
+                        <button id="execute-query-btn" class="btn btn-primary">View Query Results</button>
+                        <button id="execute-custom-btn" class="btn btn-success hidden" onclick="dashboard.executeCustomQuery()">Execute Custom Query</button>
+                    </div>
+                </div>
+                
+                <div class="results-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h4 style="margin: 0;">Query Results:</h4>
+                        <button id="copy-results-btn" class="btn btn-sm btn-secondary hidden" onclick="dashboard.copyResults()">
+                            📋 Copy Results
+                        </button>
+                    </div>
+                    <div id="query-results-container">
+                        <div id="results-loading" class="loading hidden">Loading results...</div>
+                        <div id="results-error" class="error hidden"></div>
+                        <div id="results-table-container" class="hidden">
+                            <div class="results-summary">
+                                <span>Records returned: <strong id="results-count">--</strong></span>
+                            </div>
+                            <div class="table-wrapper">
+                                <table id="results-table" class="results-table">
+                                    <!-- Populated by JavaScript -->
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Theme Editor Modal -->
+    <div id="theme-editor-modal" class="modal">
+        <div class="modal-content fullscreen">
+            <div class="modal-header">
+                <h3>📝 Edit Research Theme</h3>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span id="theme-editor-status" class="theme-status-badge"></span>
+                    <span class="close">&times;</span>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="theme-editor-container">
+                    <!-- Theme Metadata Section -->
+                    <div class="editor-section">
+                        <div class="editor-section-header">
+                            <h4>📋 Theme Information</h4>
+                            <div class="editor-actions">
+                                <button id="generate-claims-btn" class="btn btn-sm btn-info">
+                                    🤖 Generate Validation Claims
+                                </button>
+                                <button id="save-theme-btn" class="btn btn-sm btn-success">
+                                    💾 Save Changes
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="metadata-grid">
+                            <div class="metadata-field">
+                                <label>Theme ID:</label>
+                                <input type="text" id="edit-theme-id" class="form-input" readonly>
+                            </div>
+                            <div class="metadata-field">
+                                <label>Theme Type:</label>
+                                <select id="edit-theme-type" class="form-input">
+                                    <option value="eu_ets">EU ETS</option>
+                                    <option value="routes">Routes</option>
+                                    <option value="geopolitical">Geopolitical</option>
+                                    <option value="carrier">Carrier</option>
+                                    <option value="regional">Regional</option>
+                                    <option value="data_insight">Data Insight</option>
+                                </select>
+                            </div>
+                            <div class="metadata-field">
+                                <label>Quarter:</label>
+                                <input type="text" id="edit-theme-quarter" class="form-input">
+                            </div>
+                            <div class="metadata-field">
+                                <label>Status:</label>
+                                <select id="edit-theme-status" class="form-input">
+                                    <option value="pending">Pending</option>
+                                    <option value="researching">Researching</option>
+                                    <option value="validating">Validating</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="failed">Failed</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Prompt Editing Section -->
+                    <div class="editor-section">
+                        <div class="editor-section-header">
+                            <h4>✍️ Research Prompts</h4>
+                            <div class="prompt-options">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="merge-prompts-checkbox">
+                                    Merge into single prompt
+                                </label>
+                                <button id="preview-merged-btn" class="btn btn-sm btn-secondary">
+                                    👁️ Preview Merged
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Separate Prompts View -->
+                        <div id="separate-prompts-view">
+                            <div class="prompt-container">
+                                <label>User Guidance:</label>
+                                <textarea id="edit-user-guidance" class="form-textarea" rows="6" 
+                                          placeholder="Original user-provided research guidance..."></textarea>
+                            </div>
+                            
+                            <div class="prompt-container">
+                                <label>Enhanced Query:</label>
+                                <textarea id="edit-enhanced-query" class="form-textarea" rows="6"
+                                          placeholder="LLM-enhanced research query..."></textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- Merged Prompt View -->
+                        <div id="merged-prompt-view" class="hidden">
+                            <div class="prompt-container">
+                                <label>Merged Research Prompt:</label>
+                                <textarea id="edit-merged-prompt" class="form-textarea" rows="12"
+                                          placeholder="Combined user guidance and enhanced query..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Validation Claims Section -->
+                    <div class="editor-section">
+                        <div class="editor-section-header">
+                            <h4>🔍 Validation Claims</h4>
+                            <div class="claims-actions">
+                                <span id="claims-count-editor">0 claims</span>
+                                <button id="add-manual-claim-btn" class="btn btn-sm btn-success">
+                                    ➕ Add Manual Claim
+                                </button>
+                                <button id="regenerate-claims-btn" class="btn btn-sm btn-warning">
+                                    🔄 Regenerate All Claims
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="claims-editor-list" class="claims-editor-container">
+                            <!-- Claims will be populated here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Research Content Preview -->
+                    <div class="editor-section">
+                        <div class="editor-section-header">
+                            <h4>📄 Research Content Preview</h4>
+                            <div class="content-actions">
+                                <button id="refresh-content-btn" class="btn btn-sm btn-info">
+                                    🔄 Refresh Content
+                                </button>
+                                <button id="export-research-btn" class="btn btn-sm btn-secondary">
+                                    📤 Export Research
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="research-content-preview" class="research-content-preview">
+                            <!-- Research content will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Validation Query Modal -->
+    <div id="add-validation-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>➕ Create Validation Query</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="validation-form">
+                    <div class="validation-section">
+                        <h4>Claim to Validate:</h4>
+                        <textarea id="new-claim-text" class="form-textarea" rows="3" 
+                                  placeholder="Enter the claim you want to validate (e.g., 'Rotterdam port is suffering increased delays')"></textarea>
+                        
+                        <h4>Validation Logic:</h4>
+                        <textarea id="new-validation-logic" class="form-textarea" rows="2" 
+                                  placeholder="Explain how your query validates or refutes the claim (e.g., 'Calculate average port call time over the last quarters to support recent port delays')"></textarea>
+                        
+                        <h4>SQL Validation Query:</h4>
+                        <textarea id="new-validation-query" class="query-editor" rows="10" 
+                                  placeholder="SELECT ... FROM escalas e ..."></textarea>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+                            <div>
+                                <label>Claim Type:</label>
+                                <select id="new-claim-type" class="form-input">
+                                    <option value="manual">Manual Validation</option>
+                                    <option value="port_frequency">Port Frequency</option>
+                                    <option value="transit_time">Transit Time</option>
+                                    <option value="route_pattern">Route Pattern</option>
+                                    <option value="vessel_movement">Vessel Movement</option>
+                                    <option value="fuel_consumption">Fuel Consumption</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Period Filter (optional):</label>
+                                <input type="text" id="new-period-filter" class="form-input" 
+                                       placeholder="e.g., 2024Q3, 2024">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                        <button type="button" id="test-query-btn" class="btn btn-secondary">🧪 Test Query</button>
+                        <div>
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('add-validation-modal').classList.remove('show')">
+                                Cancel
+                            </button>
+                            <button type="submit" class="btn btn-success">✅ Create Validation</button>
+                        </div>
+                    </div>
+                </form>
+                
+                <!-- Test Results Section -->
+                <div id="test-results-section" class="results-section hidden">
+                    <h4>🧪 Query Test Results:</h4>
+                    <div id="test-results-container">
+                        <div id="test-loading" class="loading hidden">Testing query...</div>
+                        <div id="test-error" class="error hidden"></div>
+                        <div id="test-success" class="execution-status completed hidden"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

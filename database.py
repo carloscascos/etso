@@ -241,9 +241,9 @@ class ETSODataAccess:
         INSERT INTO validation_claims (
             research_metadata_id, claim_text, claim_type,
             vessel_filter, route_filter, period_filter,
-            validation_query, confidence_score, supports_claim,
+            validation_query, validation_logic, confidence_score, supports_claim,
             data_points_found, analysis_text
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         return self.db_manager.execute_etso_query(
             query,
@@ -255,6 +255,7 @@ class ETSODataAccess:
                 claim_data['route_filter'],
                 claim_data['period_filter'],
                 claim_data['validation_query'],
+                claim_data.get('validation_logic', ''),
                 claim_data['confidence_score'],
                 claim_data['supports_claim'],
                 claim_data['data_points_found'],

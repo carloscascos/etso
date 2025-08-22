@@ -222,7 +222,7 @@ The system operates as a distributed intelligence network with specialized resea
 ### 3.3 Validation Agent Requirements
 
 #### 3.3.1 Database Integration
-**Purpose**: Validate research findings against vessel tracking database
+**Purpose**: Validate research findings against vessel tracking database is optional, the user will write a query to validate the findings, the sytem will execute the query and interpret the results and dtermine if the findings are validated or not.
 
 **Core Database Tables Required**:
 - Vessel registry (IMO, name, capacity, owner)
@@ -242,8 +242,8 @@ The system operates as a distributed intelligence network with specialized resea
 **Process Requirements**:
 1. Receive research finding flagged for validation
 2. Parse claim into verifiable components
-3. Query vessel database for relevant data
-4. Compare research claim with database facts
+3. User writes Query against vessel database for relevant data
+4. Sytem Compars research claim with database facts
 5. Calculate confidence score
 6. Document discrepancies
 7. Store validation results with original research

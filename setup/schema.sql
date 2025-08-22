@@ -65,6 +65,7 @@ CREATE TABLE validation_claims (
     route_filter VARCHAR(255),
     period_filter VARCHAR(100),
     validation_query TEXT,
+    validation_logic TEXT COMMENT 'Semantic meaning of the validation query - explains how it validates or refutes the claim',
     confidence_score DECIMAL(4,3) DEFAULT NULL,
     supports_claim BOOLEAN DEFAULT NULL,
     data_points_found INT DEFAULT 0,

@@ -31,8 +31,9 @@ class DatabaseConfig:
             'database': os.getenv('TRAFFIC_DB_NAME', 'traffic_db'),
             'charset': 'utf8mb4',
             'autocommit': True,
-            'read_timeout': 30,
-            'write_timeout': 30
+            'read_timeout': 300,  # 5 minutes for complex queries
+            'write_timeout': 300,
+            'connect_timeout': 30
         }
     
     @property
@@ -77,6 +78,17 @@ class LLMConfig:
             'max_tokens': int(os.getenv('OPENAI_MAX_TOKENS', '4000'))
         }
 
+@dataclass 
+class ResearchConfig:
+    """Research configuration"""
+    @property
+    def CURRENT_QUARTER(self) -> str:
+        return os.getenv('CURRENT_QUARTER', '2025Q1')
+    
+    @property
+    def VALIDATION_THRESHOLD(self) -> float:
+        return float(os.getenv('VALIDATION_THRESHOLD', '0.7'))
+
 class SystemConfig:
     """System-wide configuration"""
     
@@ -84,6 +96,7 @@ class SystemConfig:
         self.database = DatabaseConfig()
         self.chroma = ChromaConfig()
         self.llm = LLMConfig()
+        self.research = ResearchConfig()
     
     @property
     def SYSTEM_SETTINGS(self) -> Dict[str, Any]:

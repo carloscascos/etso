@@ -224,24 +224,21 @@ class DataInsightDiscovery:
         """Analyze route deviations and pattern changes"""
         
         query = """
-        WITH route_patterns AS (
-            SELECT 
-                e.imo,
-                v.vessel_name,
-                COUNT(CASE WHEN e.next_port != LAG(e.next_port) OVER (PARTITION BY e.imo ORDER BY e.start_time) THEN 1 END) as pattern_changes,
-                COUNT(*) as total_calls,
-                GROUP_CONCAT(DISTINCT p.zone) as zones_visited
-            FROM escalas e
-            JOIN vessels v ON e.imo = v.imo
-            LEFT JOIN ports p ON e.portname = p.portname
-            WHERE CONCAT(YEAR(e.start_time), 'Q', QUARTER(e.start_time)) = %s
-            GROUP BY e.imo, v.vessel_name
-        )
-        SELECT imo, vessel_name, pattern_changes, total_calls, zones_visited
-        FROM route_patterns
-        WHERE pattern_changes > (total_calls * 0.3)
-        AND total_calls >= 5
-        ORDER BY pattern_changes DESC
+        SELECT 
+            e.imo,
+            v.name as vessel_name,
+            COUNT(DISTINCT e.next_port) as unique_destinations,
+            COUNT(*) as total_calls,
+            GROUP_CONCAT(DISTINCT p.zone) as zones_visited
+        FROM escalas e
+        JOIN port_trace pt ON pt.imo = e.imo
+        JOIN v_fleet v ON e.imo = v.imo
+        LEFT JOIN ports p ON e.portname = p.portname
+        WHERE CONCAT(YEAR(e.start), 'Q', QUARTER(e.start)) = %s
+        AND e.next_port IS NOT NULL
+        GROUP BY e.imo, v.name
+        HAVING total_calls >= 5 AND unique_destinations >= 3
+        ORDER BY unique_destinations DESC, total_calls DESC
         LIMIT 10
         """
         
@@ -251,17 +248,17 @@ class DataInsightDiscovery:
             insights = []
             for row in results:
                 insights.append({
-                    'type': 'route_deviation',
-                    'title': f'Route pattern changes detected for {row[1]}',
-                    'description': f'Vessel {row[1]} (IMO: {row[0]}) shows {row[2]} pattern changes out of {row[3]} port calls',
+                    'type': 'route_diversity',
+                    'title': f'High route diversity detected for {row[1]}',
+                    'description': f'Vessel {row[1]} (IMO: {row[0]}) visited {row[2]} different destinations in {row[3]} port calls',
                     'data': {
                         'imo': row[0],
                         'vessel_name': row[1],
-                        'pattern_changes': row[2],
+                        'unique_destinations': row[2],
                         'total_calls': row[3],
                         'zones_visited': row[4]
                     },
-                    'research_prompt': f'Research why {row[1]} changed route patterns - possible Red Sea avoidance or service optimization?'
+                    'research_prompt': f'Research why {row[1]} shows high route diversity - possible service flexibility or market optimization?'
                 })
             
             return insights
@@ -271,21 +268,24 @@ class DataInsightDiscovery:
             return []
     
     async def _analyze_fuel_patterns(self, quarter: str) -> List[Dict[str, Any]]:
-        """Analyze fuel consumption patterns"""
+        """Analyze CO2 emissions patterns by zone"""
         
         query = """
         SELECT 
             p.zone,
-            AVG(e.fuel_consumption) as avg_fuel,
-            STDDEV(e.fuel_consumption) as fuel_deviation,
-            COUNT(DISTINCT e.imo) as vessel_count
+            AVG(m.co2nm) as avg_co2_per_nm,
+            STDDEV(m.co2nm) as co2_deviation,
+            COUNT(DISTINCT e.imo) as vessel_count,
+            COUNT(*) as total_port_calls
         FROM escalas e
+        JOIN port_trace pt ON pt.imo = e.imo
         JOIN ports p ON e.portname = p.portname
-        WHERE CONCAT(YEAR(e.start_time), 'Q', QUARTER(e.start_time)) = %s
-        AND e.fuel_consumption > 0
+        JOIN v_MRV m ON e.imo = m.imo
+        WHERE CONCAT(YEAR(e.start), 'Q', QUARTER(e.start)) = %s
+        AND m.co2nm > 0
         GROUP BY p.zone
-        HAVING vessel_count >= 10 AND fuel_deviation > avg_fuel * 0.5
-        ORDER BY fuel_deviation DESC
+        HAVING vessel_count >= 5 AND co2_deviation > avg_co2_per_nm * 0.4
+        ORDER BY co2_deviation DESC
         LIMIT 5
         """
         
@@ -295,22 +295,23 @@ class DataInsightDiscovery:
             insights = []
             for row in results:
                 insights.append({
-                    'type': 'fuel_anomaly',
-                    'title': f'Fuel consumption variation in {row[0]}',
-                    'description': f'Zone {row[0]} shows high fuel consumption variation (std dev: {row[2]:.2f})',
+                    'type': 'co2_emissions_anomaly',
+                    'title': f'CO2 emissions variation in {row[0]}',
+                    'description': f'Zone {row[0]} shows high CO2/nm variation (std dev: {row[2]:.2f} kg, avg: {row[1]:.2f} kg per nautical mile)',
                     'data': {
                         'zone': row[0],
-                        'avg_fuel': row[1],
-                        'fuel_deviation': row[2],
-                        'vessel_count': row[3]
+                        'avg_co2_per_nm': row[1],
+                        'co2_deviation': row[2],
+                        'vessel_count': row[3],
+                        'total_port_calls': row[4]
                     },
-                    'research_prompt': f'Investigate fuel consumption variations in {row[0]} - possible route diversions or efficiency changes?'
+                    'research_prompt': f'Investigate CO2 emissions variations in {row[0]} - possible route diversions or fuel efficiency changes affecting carbon intensity?'
                 })
             
             return insights
             
         except Exception as e:
-            logger.error(f"❌ Fuel pattern analysis failed: {e}")
+            logger.error(f"❌ CO2 emissions analysis failed: {e}")
             return []
     
     async def _analyze_port_patterns(self, quarter: str) -> List[Dict[str, Any]]:
@@ -325,8 +326,9 @@ class DataInsightDiscovery:
             COUNT(*) as call_frequency,
             COUNT(DISTINCT e.imo) as unique_vessels
         FROM escalas e
+        JOIN port_trace pt ON pt.imo = e.imo
         JOIN ports p ON e.portname = p.portname
-        WHERE CONCAT(YEAR(e.start_time), 'Q', QUARTER(e.start_time)) = %s
+        WHERE CONCAT(YEAR(e.start), 'Q', QUARTER(e.start)) = %s
         GROUP BY e.portname, p.country, p.zone
         HAVING call_frequency >= 50
         ORDER BY call_frequency DESC
@@ -569,7 +571,8 @@ async def main():
     user_themes = [
         "Red Sea crisis impact on Asia-Europe container routes",
         "Maersk GEMINI alliance carbon compliance strategy",
-        "Eastern Mediterranean transshipment hub development"
+        "Eastern Mediterranean transshipment hub development",
+        "Transpacific trade Asia-America container volumes focusing on Long Beach port"
     ]
     
     # Run analysis

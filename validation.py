@@ -36,36 +36,42 @@ class ClaimExtractor:
     
     def _create_extraction_prompt(self) -> ChatPromptTemplate:
         return ChatPromptTemplate.from_messages([
-            ("system", """You are a maritime data analyst. Extract specific, verifiable claims 
-            from research findings that can be validated against vessel movement data.
-            
-            For each claim, identify:
-            1. Claim text (exact statement)
-            2. Claim type (vessel_movement, fuel_consumption, transit_time, route_pattern, port_frequency)
-            3. Vessel name or IMO (if mentioned)
-            4. Route description (ports, corridors, regions)
-            5. Time period (quarter, year, date range)
-            6. Metric (what is being measured)
-            7. Expected change (increase, decrease, pattern)
-            
-            Only extract claims that mention specific vessels, routes, or measurable changes.
-            Return as JSON array."""),
-            ("human", """Research finding to analyze:
-            {research_content}
-            
-            Expected validation targets:
-            {validation_targets}
-            
-            Extract verifiable claims as JSON array with format:
-            [{
-                "claim_text": "exact claim from research",
-                "claim_type": "vessel_movement|fuel_consumption|transit_time|route_pattern|port_frequency",
-                "vessel": "vessel name or IMO if mentioned",
-                "route": "route description",
-                "period": "time period",
-                "metric": "what is measured",
-                "expected_change": "expected pattern or change"
-            }]""")
+            ("system", """You are a maritime data analyst expert at extracting verifiable claims from research.
+
+CRITICAL: You must respond with ONLY valid JSON - no explanations, no markdown, no additional text.
+
+Extract specific claims that mention:
+- Vessel names, shipping lines, or fleet data
+- Route changes, port patterns, or corridor shifts  
+- Measurable impacts (percentages, volumes, times, costs)
+- Time periods (quarters, years, specific dates)
+
+Claim types:
+- vessel_movement: vessel location/route changes
+- route_pattern: service modifications, corridor shifts
+- port_frequency: changes in port calls
+- transit_time: voyage duration changes
+- co2_emissions: carbon footprint variations
+
+Response format: JSON array only, no other text."""),
+            ("human", """Research content:
+{research_content}
+
+Validation targets: {validation_targets}
+
+Extract verifiable claims as JSON array. Include claims with specific vessels, routes, percentages, or measurable changes:
+
+[
+  {{
+    "claim_text": "exact quote from research",
+    "claim_type": "vessel_movement",
+    "vessel": "vessel/company name or null",
+    "route": "route description or null", 
+    "period": "time period or null",
+    "metric": "what is measured or null",
+    "expected_change": "increase/decrease/pattern or null"
+  }}
+]""")
         ])
     
     def extract_claims(self, research_content: str, validation_targets: List[str]) -> List[ValidationClaim]:
@@ -104,47 +110,99 @@ class ClaimExtractor:
     
     def _parse_json_response(self, response_text: str) -> List[Dict]:
         """Parse LLM JSON response, handling potential formatting issues"""
+        # Clean the response text
+        clean_text = response_text.strip()
+        
+        # Remove markdown code blocks if present
+        if clean_text.startswith('```'):
+            clean_text = re.sub(r'^```(?:json)?\s*', '', clean_text, flags=re.IGNORECASE)
+            clean_text = re.sub(r'```\s*$', '', clean_text)
+            clean_text = clean_text.strip()
+        
         try:
             # Try direct JSON parsing
-            return json.loads(response_text)
-        except json.JSONDecodeError:
-            # Try to extract JSON from text
-            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
-            if json_match:
-                try:
-                    return json.loads(json_match.group())
-                except json.JSONDecodeError:
-                    pass
+            return json.loads(clean_text)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Direct JSON parsing failed: {e}")
+            
+            # Try to extract JSON array from text
+            json_patterns = [
+                r'\[[\s\S]*\]',  # Find array brackets with anything inside
+                r'\{[\s\S]*\}',  # Find object brackets as fallback
+            ]
+            
+            for pattern in json_patterns:
+                json_match = re.search(pattern, clean_text, re.DOTALL)
+                if json_match:
+                    try:
+                        extracted = json_match.group()
+                        result = json.loads(extracted)
+                        # Ensure it's a list
+                        return result if isinstance(result, list) else [result]
+                    except json.JSONDecodeError:
+                        continue
+            
+            # Log the problematic response for debugging
+            logger.warning(f"JSON parsing failed for response: {clean_text[:200]}...")
             
             # Fallback: manual parsing
-            logger.warning("Failed to parse JSON response, using fallback parsing")
-            return self._fallback_parse(response_text)
+            logger.warning("Using fallback parsing")
+            return self._fallback_parse(clean_text)
     
     def _fallback_parse(self, text: str) -> List[Dict]:
         """Fallback parsing when JSON parsing fails"""
-        # Simple fallback - extract basic claim information
+        logger.info("🔧 Using fallback claim parsing")
+        
+        # Look for patterns that indicate claims
         claims = []
-        lines = text.split('\n')
         
-        current_claim = {}
-        for line in lines:
-            line = line.strip()
-            if 'claim_text' in line.lower():
-                current_claim['claim_text'] = line.split(':', 1)[1].strip().strip('"')
-            elif 'claim_type' in line.lower():
-                current_claim['claim_type'] = line.split(':', 1)[1].strip().strip('"')
-            elif 'vessel' in line.lower():
-                current_claim['vessel'] = line.split(':', 1)[1].strip().strip('"')
-            elif 'route' in line.lower():
-                current_claim['route'] = line.split(':', 1)[1].strip().strip('"')
-            elif len(current_claim) >= 2 and line == '':
-                claims.append(current_claim)
-                current_claim = {}
+        # Try to find any quoted strings that might be claims
+        claim_patterns = [
+            r'"([^"]*(?:vessel|ship|container|route|port|transit|cargo)[^"]*)"',
+            r'"([^"]*(?:increase|decrease|change|impact|reduction)[^"]*)"',
+            r'"([^"]*(?:Maersk|MSC|COSCO|CMA|Evergreen)[^"]*)"',
+            r'"([^"]*(?:Suez|Red Sea|Mediterranean|Asia|Europe)[^"]*)"'
+        ]
         
-        if current_claim:
-            claims.append(current_claim)
+        for pattern in claim_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            for match in matches:
+                if len(match) > 20:  # Only substantial claims
+                    claim = {
+                        'claim_text': match,
+                        'claim_type': 'general',
+                        'vessel': None,
+                        'route': None,
+                        'period': None,
+                        'metric': None,
+                        'expected_change': None
+                    }
+                    
+                    # Try to classify the claim type
+                    match_lower = match.lower()
+                    if any(word in match_lower for word in ['vessel', 'ship', 'fleet']):
+                        claim['claim_type'] = 'vessel_movement'
+                    elif any(word in match_lower for word in ['route', 'corridor', 'service']):
+                        claim['claim_type'] = 'route_pattern'
+                    elif any(word in match_lower for word in ['port', 'terminal', 'hub']):
+                        claim['claim_type'] = 'port_frequency'
+                    elif any(word in match_lower for word in ['transit', 'time', 'duration']):
+                        claim['claim_type'] = 'transit_time'
+                    elif any(word in match_lower for word in ['co2', 'carbon', 'emission', 'fuel']):
+                        claim['claim_type'] = 'fuel_consumption'
+                    
+                    claims.append(claim)
         
-        return claims
+        # Remove duplicates
+        unique_claims = []
+        seen_texts = set()
+        for claim in claims:
+            if claim['claim_text'] not in seen_texts:
+                seen_texts.add(claim['claim_text'])
+                unique_claims.append(claim)
+        
+        logger.info(f"🔧 Fallback parsing extracted {len(unique_claims)} claims")
+        return unique_claims[:5]  # Limit to 5 claims max
 
 class ValidationQueryGenerator:
     """Generates SQL queries to validate claims against traffic data"""
@@ -164,7 +222,7 @@ class ValidationQueryGenerator:
         return generator(claim, quarter)
     
     def _fuel_consumption_query(self, claim: ValidationClaim, quarter: str) -> str:
-        """Generate fuel consumption validation query"""
+        """Generate CO2 emissions validation query using v_MRV data"""
         vessel_filter = self._build_vessel_filter(claim.vessel)
         route_filter = self._build_route_filter(claim.route)
         period_filter = self._build_period_filter(claim.period, quarter)
@@ -172,24 +230,25 @@ class ValidationQueryGenerator:
         return f"""
         SELECT 
             e.imo,
-            v.vessel_name,
-            AVG(e.fuel_consumption) as avg_fuel_consumption,
-            STDDEV(e.fuel_consumption) as fuel_deviation,
+            v.name as vessel_name,
+            m.co2nm,
             COUNT(*) as voyage_count,
-            MIN(e.start_time) as period_start,
-            MAX(e.start_time) as period_end
+            MIN(e.start) as period_start,
+            MAX(e.start) as period_end
         FROM escalas e
-        JOIN vessels v ON e.imo = v.imo
+        JOIN port_trace pt ON pt.imo = e.imo
+        JOIN v_fleet v ON e.imo = v.imo
+        JOIN v_MRV m ON e.imo = m.imo
         LEFT JOIN ports p_start ON e.portname = p_start.portname
         LEFT JOIN ports p_end ON e.next_port = p_end.portname
-        WHERE e.fuel_consumption IS NOT NULL
-        AND e.fuel_consumption > 0
+        WHERE m.co2nm IS NOT NULL
+        AND m.co2nm > 0
         {vessel_filter}
         {route_filter}
         {period_filter}
-        GROUP BY e.imo, v.vessel_name
+        GROUP BY e.imo, v.name, m.co2nm
         HAVING voyage_count >= 2
-        ORDER BY avg_fuel_consumption DESC
+        ORDER BY m.co2nm DESC
         LIMIT 50
         """
     
@@ -203,16 +262,18 @@ class ValidationQueryGenerator:
         WITH transit_calculations AS (
             SELECT 
                 e1.imo,
-                v.vessel_name,
+                v.name as vessel_name,
                 e1.portname as origin_port,
                 e2.portname as destination_port,
-                TIMESTAMPDIFF(DAY, e1.end_time, e2.start_time) as transit_days,
-                e1.start_time as voyage_start
+                TIMESTAMPDIFF(DAY, e1.end, e2.start) as transit_days,
+                e1.start as voyage_start
             FROM escalas e1
-            JOIN escalas e2 ON e1.imo = e2.imo AND e1.next_leg = e2.prev_leg
-            JOIN vessels v ON e1.imo = v.imo
+            JOIN escalas e2 ON e1.imo = e2.imo 
+            JOIN v_fleet v ON e1.imo = v.imo
+            JOIN port_trace pt ON pt.imo = e1.imo
             WHERE e1.next_port = e2.portname
-            AND TIMESTAMPDIFF(DAY, e1.end_time, e2.start_time) BETWEEN 1 AND 60
+            AND e2.start > e1.end
+            AND TIMESTAMPDIFF(DAY, e1.end, e2.start) BETWEEN 1 AND 60
             {vessel_filter.replace('e.', 'e1.')}
             {period_filter.replace('e.', 'e1.')}
         )
@@ -242,23 +303,25 @@ class ValidationQueryGenerator:
         return f"""
         SELECT 
             e.imo,
-            v.vessel_name,
+            v.name as vessel_name,
             GROUP_CONCAT(
                 DISTINCT CONCAT(e.portname, '->', COALESCE(e.next_port, 'END'))
-                ORDER BY e.start_time 
+                ORDER BY e.start 
                 SEPARATOR ' | '
             ) as route_pattern,
             COUNT(DISTINCT e.portname) as unique_ports,
             COUNT(*) as total_calls,
             GROUP_CONCAT(DISTINCT p.zone) as zones_visited,
-            AVG(e.fuel_consumption) as avg_fuel_consumption
+            AVG(m.co2nm / 3.2 / 1000) as avg_fuel_consumption
         FROM escalas e
-        JOIN vessels v ON e.imo = v.imo
+        JOIN port_trace pt ON pt.imo = e.imo
+        JOIN v_fleet v ON e.imo = v.imo
+        LEFT JOIN v_MRV m ON e.imo = m.imo
         LEFT JOIN ports p ON e.portname = p.portname
         WHERE 1=1
         {vessel_filter}
         {period_filter}
-        GROUP BY e.imo, v.vessel_name
+        GROUP BY e.imo, v.name
         HAVING total_calls >= 3
         ORDER BY unique_ports DESC, total_calls DESC
         LIMIT 25
@@ -276,11 +339,9 @@ class ValidationQueryGenerator:
             p.country,
             p.zone,
             COUNT(DISTINCT e.imo) as unique_vessels,
-            COUNT(*) as total_calls,
-            AVG(e.fuel_consumption) as avg_fuel_consumption,
-            COUNT(DISTINCT v.operator) as unique_operators
+            COUNT(*) as total_calls
         FROM escalas e
-        JOIN vessels v ON e.imo = v.imo
+        STRAIGHT_JOIN port_trace pt ON pt.imo = e.imo
         LEFT JOIN ports p ON e.portname = p.portname
         WHERE 1=1
         {vessel_filter}
@@ -301,22 +362,24 @@ class ValidationQueryGenerator:
         return f"""
         SELECT 
             e.imo,
-            v.vessel_name,
+            v.name as vessel_name,
             e.portname,
             e.next_port,
-            e.start_time,
-            e.end_time,
-            e.fuel_consumption,
+            e.start,
+            e.end,
+            m.co2nm / 3.2 / 1000 as fuel_consumption,
             p.country,
             p.zone
         FROM escalas e
-        JOIN vessels v ON e.imo = v.imo
+        JOIN port_trace pt ON pt.imo = e.imo
+        JOIN v_fleet v ON e.imo = v.imo
+        LEFT JOIN v_MRV m ON e.imo = m.imo
         LEFT JOIN ports p ON e.portname = p.portname
         WHERE 1=1
         {vessel_filter}
         {route_filter}
         {period_filter}
-        ORDER BY e.start_time DESC
+        ORDER BY e.start DESC
         LIMIT 100
         """
     
@@ -334,13 +397,24 @@ class ValidationQueryGenerator:
             return f"AND e.imo = {vessel_info}"
         elif vessel_info.strip():
             # Search by vessel name (partial match)
-            return f"AND v.vessel_name LIKE '%{vessel_info}%'"
+            # Double %% to escape for pymysql parameter handling
+            return f"AND v.name LIKE '%%{vessel_info}%%'"
         
         return ""
     
     def _build_route_filter(self, route_info: Optional[str]) -> str:
         """Build route filter clause"""
         if not route_info:
+            return ""
+        
+        # Handle dict input (from LLM extraction)
+        if isinstance(route_info, dict):
+            if 'ports' in route_info and route_info['ports']:
+                ports = route_info['ports']
+                if isinstance(ports, list) and ports:
+                    # Double %% to escape for pymysql parameter handling
+                    port_conditions = " OR ".join([f"e.portname LIKE '%%{p}%%'" for p in ports])
+                    return f" AND ({port_conditions})"
             return ""
         
         route_info = route_info.strip()
@@ -350,9 +424,10 @@ class ValidationQueryGenerator:
             ports = [p.strip() for p in route_info.split('->')]
             if len(ports) >= 2:
                 origin, destination = ports[0], ports[1]
+                # Double %% to escape for pymysql parameter handling
                 return f"""
-                AND (e.portname LIKE '%{origin}%' OR e.portname LIKE '%{destination}%')
-                AND (e.next_port LIKE '%{origin}%' OR e.next_port LIKE '%{destination}%')
+                AND (e.portname LIKE '%%{origin}%%' OR e.portname LIKE '%%{destination}%%')
+                AND (e.next_port LIKE '%%{origin}%%' OR e.next_port LIKE '%%{destination}%%')
                 """
         
         # Handle regional routes like "Asia-Europe"
@@ -360,17 +435,19 @@ class ValidationQueryGenerator:
             regions = [r.strip() for r in route_info.split('-')]
             if len(regions) >= 2:
                 region1, region2 = regions[0], regions[1]
+                # Double %% to escape for pymysql parameter handling
                 return f"""
-                AND (p_start.zone LIKE '%{region1}%' OR p_start.zone LIKE '%{region2}%'
-                     OR p_end.zone LIKE '%{region1}%' OR p_end.zone LIKE '%{region2}%')
+                AND (p_start.zone LIKE '%%{region1}%%' OR p_start.zone LIKE '%%{region2}%%'
+                     OR p_end.zone LIKE '%%{region1}%%' OR p_end.zone LIKE '%%{region2}%%')
                 """
         
         # General port/region search
         else:
+            # Double %% to escape for pymysql parameter handling
             return f"""
-            AND (e.portname LIKE '%{route_info}%' 
-                 OR e.next_port LIKE '%{route_info}%'
-                 OR p.zone LIKE '%{route_info}%')
+            AND (e.portname LIKE '%%{route_info}%%' 
+                 OR e.next_port LIKE '%%{route_info}%%'
+                 OR p.zone LIKE '%%{route_info}%%')
             """
         
         return ""
@@ -380,16 +457,30 @@ class ValidationQueryGenerator:
         if not route_info:
             return ""
         
+        # Handle dict input (from LLM extraction)
+        if isinstance(route_info, dict):
+            if 'ports' in route_info and route_info['ports']:
+                ports = route_info['ports']
+                if isinstance(ports, list) and len(ports) >= 2:
+                    # Double %% to escape for pymysql parameter handling
+                    return f"""
+                    AND origin_port LIKE '%%{ports[0]}%%'
+                    AND destination_port LIKE '%%{ports[1]}%%'
+                    """
+            return ""
+        
         if '->' in route_info:
             ports = [p.strip() for p in route_info.split('->')]
             if len(ports) >= 2:
                 origin, destination = ports[0], ports[1]
+                # Double %% to escape for pymysql parameter handling
                 return f"""
-                AND origin_port LIKE '%{origin}%'
-                AND destination_port LIKE '%{destination}%'
+                AND origin_port LIKE '%%{origin}%%'
+                AND destination_port LIKE '%%{destination}%%'
                 """
         
-        return f"AND (origin_port LIKE '%{route_info}%' OR destination_port LIKE '%{route_info}%')"
+        # Double %% to escape for pymysql parameter handling
+        return f"AND (origin_port LIKE '%%{route_info}%%' OR destination_port LIKE '%%{route_info}%%')"
     
     def _build_period_filter(self, period_info: Optional[str], default_quarter: str) -> str:
         """Build time period filter clause"""
@@ -400,15 +491,15 @@ class ValidationQueryGenerator:
         
         # Handle quarter format like "2024Q1"
         if 'Q' in target_period.upper():
-            return f"AND CONCAT(YEAR(e.start_time), 'Q', QUARTER(e.start_time)) = '{target_period.upper()}'"
+            return f"AND CONCAT(YEAR(e.start), 'Q', QUARTER(e.start)) = '{target_period.upper()}'"
         
         # Handle year format like "2024"
         elif len(target_period) == 4 and target_period.isdigit():
-            return f"AND YEAR(e.start_time) = {target_period}"
+            return f"AND YEAR(e.start) = {target_period}"
         
         # Handle date format (basic)
         else:
-            return f"AND e.start_time >= '{target_period}'"
+            return f"AND e.start >= '{target_period}'"
 
 class ValidationAnalyzer:
     """Analyzes validation results using LLM"""
