@@ -149,9 +149,9 @@ class ObservatorioDashboard {
             const validations = await this.fetchAPI('/api/validation-status');
             this.displayValidationStatus(validations);
             
-            // Load system health
-            const health = await this.fetchAPI('/api/system-health');
-            this.displaySystemHealth(health);
+            // System health removed - no longer needed
+            // const health = await this.fetchAPI('/api/system-health');
+            // this.displaySystemHealth(health);
             
         } catch (error) {
             console.error('Error loading overview data:', error);
@@ -206,8 +206,8 @@ class ObservatorioDashboard {
         container.innerHTML = findings.map(finding => `
             <div class="finding-item" onclick="dashboard.viewResearch(${finding.id})">
                 <div class="finding-header">
-                    <span class="finding-theme">${finding.theme_type.toUpperCase()}</span>
-                    <span class="finding-status ${finding.status}">${finding.status}</span>
+                    <span class="finding-theme-mini">${finding.theme_type.toUpperCase()}</span>
+                    <span class="finding-status-mini ${finding.status}">${finding.status}</span>
                 </div>
                 <div class="finding-guidance">${finding.user_guidance || 'No guidance provided'}</div>
                 <div class="finding-meta">
@@ -267,20 +267,21 @@ class ObservatorioDashboard {
         }
     }
     
-    displaySystemHealth(health) {
-        const healthMap = {
-            'traffic-db-status': health.databases?.traffic_db,
-            'etso-db-status': health.databases?.etso_db,
-            'chromadb-status': health.databases?.chromadb
-        };
-        
-        Object.entries(healthMap).forEach(([elementId, status]) => {
-            const indicator = document.getElementById(elementId);
-            if (indicator) {
-                indicator.className = `indicator ${status ? 'healthy' : ''}`;
-            }
-        });
-    }
+    // System health display removed - no longer needed
+    // displaySystemHealth(health) {
+    //     const healthMap = {
+    //         'traffic-db-status': health.databases?.traffic_db,
+    //         'etso-db-status': health.databases?.etso_db,
+    //         'chromadb-status': health.databases?.chromadb
+    //     };
+    //     
+    //     Object.entries(healthMap).forEach(([elementId, status]) => {
+    //         const indicator = document.getElementById(elementId);
+    //         if (indicator) {
+    //             indicator.className = `indicator ${status ? 'healthy' : ''}`;
+    //         }
+    //     });
+    // }
     
     displayThemes(themes) {
         const container = document.getElementById('themes-grid');

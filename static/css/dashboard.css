@@ -264,6 +264,12 @@ body {
     color: var(--primary-color);
 }
 
+.finding-theme-mini {
+    font-weight: 600;
+    color: var(--primary-color);
+    font-size: 0.7rem;
+}
+
 .finding-status {
     font-size: var(--font-size-xs);
     padding: 2px 8px;
@@ -272,17 +278,28 @@ body {
     font-weight: 500;
 }
 
-.finding-status.completed {
+.finding-status-mini {
+    font-size: 0.65rem;
+    padding: 1px 4px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+.finding-status.completed,
+.finding-status-mini.completed {
     background: #d4edda;
     color: #155724;
 }
 
-.finding-status.validating {
+.finding-status.validating,
+.finding-status-mini.validating {
     background: #fff3cd;
     color: #856404;
 }
 
-.finding-status.pending {
+.finding-status.pending,
+.finding-status-mini.pending {
     background: #f8d7da;
     color: #721c24;
 }
