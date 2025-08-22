@@ -227,31 +227,17 @@ class ObservatorioDashboard {
         let totalPending = 0;
         let totalValidated = 0;
         
-        if (validations.length === 0) {
-            container.innerHTML = '<div class="loading">No validation data available</div>';
-        } else {
-            container.innerHTML = validations.map(validation => {
-                // Count pending (those with 0% confidence are likely unvalidated)
-                if (!validation.avg_confidence || validation.avg_confidence === 0) {
-                    totalPending += validation.total_claims;
-                } else {
-                    totalValidated += validation.total_claims;
-                }
-                
-                return `
-                    <div class="validation-item">
-                        <div class="validation-label">${validation.claim_type.replace('_', ' ').toUpperCase()}</div>
-                        <div class="validation-value">
-                            <span>Total: ${validation.total_claims}</span>
-                            <span class="confidence-${this.getConfidenceLevel(validation.avg_confidence)}">
-                                Avg: ${Math.round((validation.avg_confidence || 0) * 100)}%
-                            </span>
-                            <span>✓ ${validation.supported} / ✗ ${validation.rejected}</span>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
+        // Calculate totals for pending badge
+        validations.forEach(validation => {
+            if (!validation.avg_confidence || validation.avg_confidence === 0) {
+                totalPending += validation.total_claims;
+            } else {
+                totalValidated += validation.total_claims;
+            }
+        });
+        
+        // Clear the validation stats display - we only show the pending count now
+        container.innerHTML = '';
         
         // Update pending badge
         const pendingBadge = document.getElementById('pending-validations');
