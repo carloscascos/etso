@@ -481,7 +481,7 @@ class ObservatorioDashboard {
         }
         
         container.innerHTML = claims.map(claim => `
-            <div class="claim-item">
+            <div class="claim-item clickable" onclick="dashboard.showClaimValidationModal(${claim.id})">
                 <div class="claim-header">
                     <span class="claim-type">${claim.claim_type.replace('_', ' ')}</span>
                     <span class="claim-confidence confidence-${this.getConfidenceLevel(claim.confidence_score)}">
@@ -500,25 +500,10 @@ class ObservatorioDashboard {
                         <span>Supported: ${claim.supports_claim ? '✅ Yes' : claim.supports_claim === false ? '❌ No' : '⏳ Pending'}</span>
                         ${claim.validation_timestamp ? `<span>Validated: ${new Date(claim.validation_timestamp).toLocaleString()}</span>` : ''}
                     </div>
-                    ${claim.validation_query ? `
-                        <button class="view-query-btn" onclick="dashboard.showQueryModal(${claim.id}, '${claim.claim_text.replace(/'/g, "\\'")}', ${claim.confidence_score || 0}, ${claim.data_points_found || 0})">
-                            View SQL Query
-                        </button>
-                    ` : ''}
-                    ${(!claim.confidence_score || claim.confidence_score === 0) ? `
-                        <button class="btn btn-sm btn-info" onclick="dashboard.runSingleValidation(${claim.id})">
-                            🔍 Run Analysis
-                        </button>
-                    ` : ''}
                 </div>
-                ${claim.vessel_filter || claim.route_filter || claim.period_filter ? `
-                    <div style="margin-top: 8px; font-size: 0.75rem; color: #868e96;">
-                        Filters: 
-                        ${claim.vessel_filter ? `Vessel: ${claim.vessel_filter}` : ''}
-                        ${claim.route_filter ? `Route: ${claim.route_filter}` : ''}
-                        ${claim.period_filter ? `Period: ${claim.period_filter}` : ''}
-                    </div>
-                ` : ''}
+                <div class="claim-click-hint">
+                    <small>🔍 Click to validate this claim</small>
+                </div>
             </div>
         `).join('');
     }
@@ -2344,6 +2329,496 @@ class ObservatorioDashboard {
     
     hideSQLExecutionError() {
         document.getElementById('sql-execution-error').classList.add('hidden');
+    }
+    
+    // Claim Validation Workflow Methods
+    async showClaimValidationModal(claimId) {
+        this.currentClaimId = claimId;
+        document.getElementById('claim-validation-modal').classList.add('show');
+        await this.loadClaimDetails(claimId);
+    }
+    
+    async loadClaimDetails(claimId) {
+        try {
+            // Load claim data from the existing claims in memory
+            const claimsContainer = document.getElementById('claims-list');
+            const claimElements = claimsContainer.querySelectorAll('.claim-item');
+            
+            // For now, we'll use the API to get claim details
+            const response = await fetch(`/api/claims/${claimId}`);
+            const data = await response.json();
+            
+            if (data.success && data.claim) {
+                this.displayClaimInformation(data.claim);
+            } else {
+                this.showError('Failed to load claim details');
+            }
+            
+        } catch (error) {
+            this.showError(`Error loading claim: ${error.message}`);
+            // Fallback: try to extract claim info from the UI
+            this.extractClaimFromUI(claimId);
+        }
+    }
+    
+    extractClaimFromUI(claimId) {
+        // Extract claim info from the displayed claims as fallback
+        const claimElements = document.querySelectorAll('.claim-item');
+        for (const element of claimElements) {
+            if (element.onclick.toString().includes(claimId)) {
+                const claimText = element.querySelector('.claim-text').textContent;
+                const claimType = element.querySelector('.claim-type').textContent;
+                const confidenceElement = element.querySelector('.claim-confidence');
+                const confidenceText = confidenceElement ? confidenceElement.textContent : '0% confidence';
+                const confidence = parseInt(confidenceText) / 100;
+                
+                const mockClaim = {
+                    id: claimId,
+                    claim_text: claimText,
+                    claim_type: claimType,
+                    confidence_score: confidence,
+                    data_points_found: 0,
+                    supports_claim: null
+                };
+                
+                this.displayClaimInformation(mockClaim);
+                break;
+            }
+        }
+    }
+    
+    displayClaimInformation(claim) {
+        // Update claim information display
+        document.getElementById('claim-id-display').textContent = claim.id;
+        document.getElementById('claim-type-display').textContent = claim.claim_type.replace('_', ' ');
+        document.getElementById('claim-confidence-display').textContent = `${Math.round((claim.confidence_score || 0) * 100)}%`;
+        document.getElementById('claim-data-points-display').textContent = claim.data_points_found || 0;
+        document.getElementById('claim-text-display').textContent = claim.claim_text;
+        
+        // Update status badge
+        const statusBadge = document.getElementById('claim-status-badge');
+        if (claim.supports_claim === true) {
+            statusBadge.textContent = 'Supported';
+            statusBadge.className = 'badge success';
+        } else if (claim.supports_claim === false) {
+            statusBadge.textContent = 'Refuted';
+            statusBadge.className = 'badge danger';
+        } else {
+            statusBadge.textContent = 'Pending Validation';
+            statusBadge.className = 'badge warning';
+        }
+        
+        // Store claim data for workflow
+        this.currentClaim = claim;
+        
+        // Reset workflow state
+        this.resetClaimValidationWorkflow();
+    }
+    
+    resetClaimValidationWorkflow() {
+        // Clear validation logic
+        document.getElementById('claim-validation-logic').value = '';
+        
+        // Hide all result sections
+        document.getElementById('claim-sql-container').classList.add('hidden');
+        document.getElementById('claim-results-container').classList.add('hidden');
+        document.getElementById('claim-conclusion-container').classList.add('hidden');
+        
+        // Hide action buttons
+        document.querySelectorAll('#claim-validation-modal .hidden').forEach(el => {
+            if (el.classList.contains('btn') || el.classList.contains('confidence-badge')) {
+                el.classList.add('hidden');
+            }
+        });
+        
+        // Reset current states
+        this.currentClaimSQL = null;
+        this.currentClaimResults = null;
+        this.currentClaimConclusion = null;
+    }
+    
+    loadClaimValidationExample() {
+        const examples = [
+            "Count vessel port calls to validate frequency increase claim by comparing current quarter with previous quarter for the specified shipping company",
+            "Analyze average transit times between port pairs to verify route delay claims by calculating mean journey times and comparing with historical data",
+            "Query CO2 emissions data to validate environmental impact claims by aggregating emissions per nautical mile for specified vessel types or routes",
+            "Examine port congestion patterns by counting simultaneous vessel arrivals and departure delays to verify port efficiency claims"
+        ];
+        
+        const randomExample = examples[Math.floor(Math.random() * examples.length)];
+        document.getElementById('claim-validation-logic').value = randomExample;
+    }
+    
+    clearValidationLogic() {
+        document.getElementById('claim-validation-logic').value = '';
+        this.resetClaimValidationWorkflow();
+    }
+    
+    async buildSQLForClaim() {
+        const validationLogic = document.getElementById('claim-validation-logic').value.trim();
+        
+        if (!validationLogic) {
+            this.showError('Please enter validation logic for this claim');
+            return;
+        }
+        
+        // Show loading state
+        this.showClaimSQLBuildingStatus(true);
+        this.hideClaimSQLError();
+        
+        try {
+            // Enhance validation logic with claim context
+            const contextualLogic = `
+Claim to validate: "${this.currentClaim.claim_text}"
+Claim type: ${this.currentClaim.claim_type}
+
+Validation approach: ${validationLogic}
+
+Generate SQL query to validate this specific claim using the provided validation logic.`;
+
+            const response = await fetch('/api/build-sql', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ validation_logic: contextualLogic })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.displayClaimSQL(data);
+                this.showSuccessMessage('SQL query generated for claim validation!');
+            } else {
+                this.showClaimSQLError(data.error || 'Failed to build SQL query for claim');
+            }
+            
+        } catch (error) {
+            this.showClaimSQLError(`Error building claim SQL: ${error.message}`);
+        } finally {
+            this.showClaimSQLBuildingStatus(false);
+        }
+    }
+    
+    displayClaimSQL(data) {
+        // Show SQL container
+        document.getElementById('claim-sql-container').classList.remove('hidden');
+        
+        // Set explanation
+        document.getElementById('claim-sql-explanation').textContent = data.explanation;
+        
+        // Set confidence badge
+        const confidenceBadge = document.getElementById('claim-query-confidence');
+        const confidencePercent = Math.round(data.confidence * 100);
+        confidenceBadge.textContent = `${confidencePercent}% confidence`;
+        confidenceBadge.className = 'confidence-badge';
+        
+        if (data.confidence >= 0.8) {
+            confidenceBadge.classList.add('high');
+        } else if (data.confidence >= 0.6) {
+            confidenceBadge.classList.add('medium');
+        } else {
+            confidenceBadge.classList.add('low');
+        }
+        
+        // Display SQL code
+        document.getElementById('claim-sql-code').textContent = data.query;
+        
+        // Store query for later execution
+        this.currentClaimSQL = data.query;
+        
+        // Show action buttons
+        document.getElementById('claim-query-confidence').classList.remove('hidden');
+        document.getElementById('copy-claim-sql').classList.remove('hidden');
+        document.getElementById('execute-claim-sql').classList.remove('hidden');
+        
+        // Apply syntax highlighting if available
+        if (window.Prism) {
+            Prism.highlightAll();
+        }
+    }
+    
+    async executeClaimSQL() {
+        if (!this.currentClaimSQL) {
+            this.showError('No SQL query to execute for this claim');
+            return;
+        }
+        
+        // Show loading state
+        this.showClaimExecutionStatus(true);
+        this.hideClaimExecutionError();
+        
+        try {
+            const response = await fetch('/api/execute-custom-sql', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: this.currentClaimSQL })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.displayClaimResults(data);
+                this.showSuccessMessage(`Claim validation query executed! ${data.row_count} rows returned.`);
+            } else {
+                this.showClaimExecutionError(data.error || 'Failed to execute claim validation query');
+            }
+            
+        } catch (error) {
+            this.showClaimExecutionError(`Error executing claim SQL: ${error.message}`);
+        } finally {
+            this.showClaimExecutionStatus(false);
+        }
+    }
+    
+    displayClaimResults(data) {
+        const resultsContainer = document.getElementById('claim-results-container');
+        const resultsTable = document.getElementById('claim-results-table');
+        const resultsCountDisplay = document.getElementById('claim-results-count');
+        
+        // Update count display
+        resultsCountDisplay.textContent = `${data.row_count} rows returned`;
+        
+        if (data.results && data.results.length > 0) {
+            // Create table HTML
+            const headers = data.columns.map(col => `<th>${col}</th>`).join('');
+            const rows = data.results.map(row => {
+                const cells = data.columns.map(col => {
+                    const value = row[col];
+                    return `<td>${value !== null ? value : ''}</td>`;
+                }).join('');
+                return `<tr>${cells}</tr>`;
+            }).join('');
+            
+            resultsTable.innerHTML = `
+                <thead><tr>${headers}</tr></thead>
+                <tbody>${rows}</tbody>
+            `;
+            
+            // Store results for analysis
+            this.currentClaimResults = data;
+            
+            // Show results and action buttons
+            resultsContainer.classList.remove('hidden');
+            document.getElementById('copy-claim-results').classList.remove('hidden');
+            document.getElementById('generate-conclusion').classList.remove('hidden');
+        } else {
+            resultsTable.innerHTML = '<tbody><tr><td colspan="100%">No results returned</td></tr></tbody>';
+            resultsContainer.classList.remove('hidden');
+            
+            // Still allow conclusion generation for "no results" case
+            this.currentClaimResults = data;
+            document.getElementById('generate-conclusion').classList.remove('hidden');
+        }
+    }
+    
+    async generateClaimConclusion() {
+        if (!this.currentClaim || !this.currentClaimResults) {
+            this.showError('Missing claim or results data for conclusion generation');
+            return;
+        }
+        
+        // Show loading state
+        this.showConclusionGenerationStatus(true);
+        this.hideConclusionError();
+        
+        try {
+            const conclusionData = {
+                claim_id: this.currentClaimId,
+                claim_text: this.currentClaim.claim_text,
+                claim_type: this.currentClaim.claim_type,
+                validation_logic: document.getElementById('claim-validation-logic').value,
+                sql_query: this.currentClaimSQL,
+                query_results: this.currentClaimResults,
+                row_count: this.currentClaimResults.row_count
+            };
+            
+            const response = await fetch('/api/generate-claim-conclusion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(conclusionData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.displayClaimConclusion(data);
+                this.showSuccessMessage('Claim analysis conclusion generated!');
+            } else {
+                this.showConclusionError(data.error || 'Failed to generate conclusion');
+            }
+            
+        } catch (error) {
+            this.showConclusionError(`Error generating conclusion: ${error.message}`);
+        } finally {
+            this.showConclusionGenerationStatus(false);
+        }
+    }
+    
+    displayClaimConclusion(data) {
+        const conclusionContainer = document.getElementById('claim-conclusion-container');
+        
+        // Update verdict
+        const verdictBadge = document.getElementById('conclusion-verdict');
+        verdictBadge.textContent = data.verdict || 'Inconclusive';
+        verdictBadge.className = 'verdict-badge';
+        
+        switch((data.verdict || '').toLowerCase()) {
+            case 'supports':
+            case 'supported':
+                verdictBadge.classList.add('supports');
+                break;
+            case 'refutes':
+            case 'refuted':
+                verdictBadge.classList.add('refutes');
+                break;
+            default:
+                verdictBadge.classList.add('inconclusive');
+        }
+        
+        // Update confidence
+        document.getElementById('conclusion-confidence').textContent = `${Math.round((data.confidence || 0) * 100)}%`;
+        
+        // Update conclusion text
+        document.getElementById('claim-conclusion-text').textContent = data.analysis || 'Analysis not available';
+        
+        // Update timestamp
+        document.getElementById('conclusion-timestamp').textContent = new Date().toLocaleString();
+        
+        // Store conclusion data
+        this.currentClaimConclusion = data;
+        
+        // Show conclusion container and action buttons
+        conclusionContainer.classList.remove('hidden');
+        document.getElementById('save-validation-results').classList.remove('hidden');
+        document.getElementById('regenerate-conclusion').classList.remove('hidden');
+    }
+    
+    copyClaimSQL() {
+        if (this.currentClaimSQL) {
+            navigator.clipboard.writeText(this.currentClaimSQL).then(() => {
+                this.showSuccessMessage('Claim SQL query copied to clipboard!');
+            }).catch(err => {
+                this.showError('Failed to copy claim SQL query');
+            });
+        }
+    }
+    
+    copyClaimResults() {
+        if (this.currentClaimResults && this.currentClaimResults.results) {
+            const csvContent = this.convertResultsToCSV(this.currentClaimResults);
+            navigator.clipboard.writeText(csvContent).then(() => {
+                this.showSuccessMessage('Claim results copied to clipboard!');
+            }).catch(err => {
+                this.showError('Failed to copy claim results');
+            });
+        }
+    }
+    
+    async saveValidationResults() {
+        if (!this.currentClaimConclusion) {
+            this.showError('No conclusion to save');
+            return;
+        }
+        
+        try {
+            const saveData = {
+                claim_id: this.currentClaimId,
+                verdict: this.currentClaimConclusion.verdict,
+                confidence: this.currentClaimConclusion.confidence,
+                analysis: this.currentClaimConclusion.analysis,
+                validation_logic: document.getElementById('claim-validation-logic').value,
+                sql_query: this.currentClaimSQL,
+                data_points_found: this.currentClaimResults.row_count
+            };
+            
+            const response = await fetch(`/api/update-claim-validation/${this.currentClaimId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(saveData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showSuccessMessage('Validation results saved successfully!');
+                // Refresh claims display
+                setTimeout(() => {
+                    this.loadResearchDetails(this.currentResearchId);
+                }, 1000);
+            } else {
+                this.showError(data.error || 'Failed to save validation results');
+            }
+            
+        } catch (error) {
+            this.showError(`Error saving validation results: ${error.message}`);
+        }
+    }
+    
+    async regenerateConclusion() {
+        // Clear current conclusion and regenerate
+        this.hideClaimConclusionContainer();
+        await this.generateClaimConclusion();
+    }
+    
+    // Status and error handling methods for claim validation
+    showClaimSQLBuildingStatus(show) {
+        const statusElement = document.getElementById('claim-sql-building-status');
+        if (show) {
+            statusElement.classList.remove('hidden');
+        } else {
+            statusElement.classList.add('hidden');
+        }
+    }
+    
+    showClaimExecutionStatus(show) {
+        const statusElement = document.getElementById('claim-execution-status');
+        if (show) {
+            statusElement.classList.remove('hidden');
+        } else {
+            statusElement.classList.add('hidden');
+        }
+    }
+    
+    showConclusionGenerationStatus(show) {
+        const statusElement = document.getElementById('conclusion-generation-status');
+        if (show) {
+            statusElement.classList.remove('hidden');
+        } else {
+            statusElement.classList.add('hidden');
+        }
+    }
+    
+    showClaimSQLError(message) {
+        const errorElement = document.getElementById('claim-sql-error');
+        errorElement.textContent = message;
+        errorElement.classList.remove('hidden');
+    }
+    
+    showClaimExecutionError(message) {
+        const errorElement = document.getElementById('claim-execution-error');
+        errorElement.textContent = message;
+        errorElement.classList.remove('hidden');
+    }
+    
+    showConclusionError(message) {
+        const errorElement = document.getElementById('conclusion-error');
+        errorElement.textContent = message;
+        errorElement.classList.remove('hidden');
+    }
+    
+    hideClaimSQLError() {
+        document.getElementById('claim-sql-error').classList.add('hidden');
+    }
+    
+    hideClaimExecutionError() {
+        document.getElementById('claim-execution-error').classList.add('hidden');
+    }
+    
+    hideConclusionError() {
+        document.getElementById('conclusion-error').classList.add('hidden');
+    }
+    
+    hideClaimConclusionContainer() {
+        document.getElementById('claim-conclusion-container').classList.add('hidden');
     }
 }
 

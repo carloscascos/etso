@@ -22,7 +22,7 @@
                 <div class="header-stats">
                     <span id="current-quarter" class="quarter-badge clickable" onclick="dashboard.showQuarterSelector()">Q1 2025</span>
                     <span id="last-update" class="last-update">Last update: --</span>
-                    <span class="version-badge">v1.4.0</span>
+                    <span class="version-badge">v1.5.0</span>
                 </div>
             </div>
         </header>
@@ -627,6 +627,192 @@ or
                         <div id="validation-examples" class="examples-grid hidden">
                             <!-- Examples will be populated here -->
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Claim Validation Modal -->
+    <div id="claim-validation-modal" class="modal">
+        <div class="modal-content fullscreen">
+            <div class="modal-header">
+                <h3>🔍 Claim Validation Workflow</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="claim-validation-container">
+                    <!-- Claim Information Section -->
+                    <div class="validation-section">
+                        <div class="validation-section-header">
+                            <h4>📋 Claim Information</h4>
+                            <div class="claim-status">
+                                <span id="claim-status-badge" class="badge">Loading...</span>
+                            </div>
+                        </div>
+                        
+                        <div class="claim-info-grid">
+                            <div class="claim-info-item">
+                                <label>Claim ID:</label>
+                                <span id="claim-id-display">--</span>
+                            </div>
+                            <div class="claim-info-item">
+                                <label>Claim Type:</label>
+                                <span id="claim-type-display">--</span>
+                            </div>
+                            <div class="claim-info-item">
+                                <label>Current Confidence:</label>
+                                <span id="claim-confidence-display">--</span>
+                            </div>
+                            <div class="claim-info-item">
+                                <label>Data Points Found:</label>
+                                <span id="claim-data-points-display">--</span>
+                            </div>
+                        </div>
+                        
+                        <div class="claim-text-display">
+                            <label><strong>Claim to Validate:</strong></label>
+                            <div id="claim-text-display" class="claim-display-box"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Validation Logic Input Section -->
+                    <div class="validation-section">
+                        <div class="validation-section-header">
+                            <h4>💡 Validation Logic (Consultant Input)</h4>
+                            <div class="validation-actions">
+                                <button id="load-claim-example" class="btn btn-sm btn-secondary" onclick="dashboard.loadClaimValidationExample()">
+                                    💡 Load Example
+                                </button>
+                                <button id="clear-validation-logic" class="btn btn-sm btn-warning" onclick="dashboard.clearValidationLogic()">
+                                    🗑️ Clear
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="validation-logic-input">
+                            <label>Enter validation logic to test this claim:</label>
+                            <textarea id="claim-validation-logic" class="form-textarea" rows="6" 
+                                      placeholder="Describe how to validate this claim using database queries...
+
+Example: 'Count Maersk vessel port calls to Rotterdam in Q1 2025 and compare with Q4 2024 to verify increased frequency claim'
+
+or
+
+'Analyze average transit times for Asia-Europe routes during 2024 to identify delays and validate claim about route disruptions'"></textarea>
+                        </div>
+                        
+                        <div class="validation-logic-actions">
+                            <button id="build-claim-sql" class="btn btn-primary" onclick="dashboard.buildSQLForClaim()">
+                                🔧 Build SQL Query
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Generated SQL Section -->
+                    <div class="validation-section">
+                        <div class="validation-section-header">
+                            <h4>🗃️ Generated SQL Query</h4>
+                            <div class="sql-query-actions">
+                                <span id="claim-query-confidence" class="confidence-badge hidden"></span>
+                                <button id="copy-claim-sql" class="btn btn-sm btn-secondary hidden" onclick="dashboard.copyClaimSQL()">
+                                    📋 Copy SQL
+                                </button>
+                                <button id="execute-claim-sql" class="btn btn-sm btn-success hidden" onclick="dashboard.executeClaimSQL()">
+                                    ▶️ Execute Query
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="claim-sql-container" class="hidden">
+                            <div class="query-explanation">
+                                <strong>Query Explanation:</strong>
+                                <p id="claim-sql-explanation"></p>
+                            </div>
+                            
+                            <div class="generated-sql-display">
+                                <pre><code id="claim-sql-code" class="language-sql"></code></pre>
+                            </div>
+                        </div>
+                        
+                        <div id="claim-sql-building-status" class="hidden">
+                            <div class="loading">🔧 Building SQL query for claim validation...</div>
+                        </div>
+                        
+                        <div id="claim-sql-error" class="error hidden"></div>
+                    </div>
+                    
+                    <!-- Query Results Section -->
+                    <div class="validation-section">
+                        <div class="validation-section-header">
+                            <h4>📊 Query Results</h4>
+                            <div class="results-actions">
+                                <span id="claim-results-count"></span>
+                                <button id="copy-claim-results" class="btn btn-sm btn-secondary hidden" onclick="dashboard.copyClaimResults()">
+                                    📋 Copy Results
+                                </button>
+                                <button id="generate-conclusion" class="btn btn-sm btn-info hidden" onclick="dashboard.generateClaimConclusion()">
+                                    🤖 Generate Conclusion
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="claim-results-container" class="hidden">
+                            <div class="table-wrapper">
+                                <table id="claim-results-table" class="results-table">
+                                    <!-- Results will be populated here -->
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div id="claim-execution-status" class="hidden">
+                            <div class="loading">⏳ Executing validation query...</div>
+                        </div>
+                        
+                        <div id="claim-execution-error" class="error hidden"></div>
+                    </div>
+                    
+                    <!-- LLM Conclusion Section -->
+                    <div class="validation-section">
+                        <div class="validation-section-header">
+                            <h4>🎯 AI Analysis & Conclusion</h4>
+                            <div class="conclusion-actions">
+                                <button id="save-validation-results" class="btn btn-sm btn-success hidden" onclick="dashboard.saveValidationResults()">
+                                    💾 Save Results
+                                </button>
+                                <button id="regenerate-conclusion" class="btn btn-sm btn-warning hidden" onclick="dashboard.regenerateConclusion()">
+                                    🔄 Regenerate
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="claim-conclusion-container" class="hidden">
+                            <div class="conclusion-summary">
+                                <div class="conclusion-verdict">
+                                    <strong>Verdict:</strong>
+                                    <span id="conclusion-verdict" class="verdict-badge">Analyzing...</span>
+                                </div>
+                                <div class="conclusion-confidence">
+                                    <strong>Confidence:</strong>
+                                    <span id="conclusion-confidence" class="confidence-display">--</span>
+                                </div>
+                            </div>
+                            
+                            <div class="conclusion-text">
+                                <label><strong>Detailed Analysis:</strong></label>
+                                <div id="claim-conclusion-text" class="conclusion-display-box"></div>
+                            </div>
+                            
+                            <div class="conclusion-metadata">
+                                <small>Generated on <span id="conclusion-timestamp"></span></small>
+                            </div>
+                        </div>
+                        
+                        <div id="conclusion-generation-status" class="hidden">
+                            <div class="loading">🤖 Analyzing results and generating conclusion...</div>
+                        </div>
+                        
+                        <div id="conclusion-error" class="error hidden"></div>
                     </div>
                 </div>
             </div>

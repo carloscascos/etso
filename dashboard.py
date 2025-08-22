@@ -1454,6 +1454,198 @@ def execute_custom_sql():
         logger.error(f"Error executing custom SQL: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/claims/<int:claim_id>')
+def get_claim_details(claim_id):
+    """Get detailed information about a specific claim"""
+    try:
+        with db_manager.get_etso_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, claim_text, claim_type, vessel_filter, route_filter, 
+                       period_filter, confidence_score, supports_claim, 
+                       data_points_found, analysis_text, validation_timestamp,
+                       validation_query, validation_logic
+                FROM validation_claims
+                WHERE id = %s
+            """, (claim_id,))
+            
+            result = cursor.fetchone()
+            if not result:
+                return jsonify({'error': 'Claim not found'}), 404
+            
+            claim = {
+                'id': result[0],
+                'claim_text': result[1],
+                'claim_type': result[2],
+                'vessel_filter': result[3],
+                'route_filter': result[4],
+                'period_filter': result[5],
+                'confidence_score': float(result[6]) if result[6] else 0.0,
+                'supports_claim': result[7],
+                'data_points_found': result[8],
+                'analysis_text': result[9],
+                'validation_timestamp': result[10].isoformat() if result[10] else None,
+                'validation_query': result[11],
+                'validation_logic': result[12]
+            }
+            
+            return jsonify({
+                'success': True,
+                'claim': claim
+            })
+            
+    except Exception as e:
+        logger.error(f"Error getting claim details: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/generate-claim-conclusion', methods=['POST'])
+def generate_claim_conclusion():
+    """Generate AI conclusion for claim validation based on query results"""
+    try:
+        data = request.get_json()
+        claim_text = data.get('claim_text')
+        claim_type = data.get('claim_type')
+        validation_logic = data.get('validation_logic')
+        sql_query = data.get('sql_query')
+        query_results = data.get('query_results', {})
+        row_count = data.get('row_count', 0)
+        
+        if not claim_text:
+            return jsonify({'error': 'claim_text is required'}), 400
+        
+        # Prepare analysis prompt
+        results_summary = f"{row_count} rows returned"
+        if query_results.get('results') and len(query_results['results']) > 0:
+            # Get a sample of results for analysis
+            sample_results = query_results['results'][:5]  # First 5 rows
+            results_text = json.dumps(sample_results, indent=2, default=str)
+        else:
+            results_text = "No data returned from query"
+        
+        analysis_prompt = f"""
+Analyze the following claim validation scenario and provide a detailed conclusion:
+
+CLAIM TO VALIDATE: "{claim_text}"
+CLAIM TYPE: {claim_type}
+
+VALIDATION APPROACH: {validation_logic}
+
+SQL QUERY EXECUTED:
+{sql_query}
+
+QUERY RESULTS:
+{results_summary}
+Sample data: {results_text}
+
+Based on the query results, analyze whether the data SUPPORTS, REFUTES, or is INCONCLUSIVE regarding the claim.
+
+Provide:
+1. VERDICT: "supports", "refutes", or "inconclusive"
+2. CONFIDENCE: A decimal between 0.0 and 1.0
+3. ANALYSIS: Detailed explanation of how the data validates or invalidates the claim
+
+Respond in JSON format:
+{{
+    "verdict": "supports|refutes|inconclusive",
+    "confidence": 0.0-1.0,
+    "analysis": "Detailed analysis explaining the conclusion..."
+}}
+"""
+
+        # Generate conclusion using LLM
+        import asyncio
+        
+        def run_conclusion_generation():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(llm.ainvoke(analysis_prompt))
+                return result
+            finally:
+                loop.close()
+        
+        llm_result = run_conclusion_generation()
+        
+        # Parse JSON response
+        try:
+            conclusion = json.loads(llm_result.content)
+        except json.JSONDecodeError:
+            # Fallback if LLM doesn't return valid JSON
+            conclusion = {
+                'verdict': 'inconclusive',
+                'confidence': 0.5,
+                'analysis': llm_result.content
+            }
+        
+        return jsonify({
+            'success': True,
+            'verdict': conclusion.get('verdict', 'inconclusive'),
+            'confidence': conclusion.get('confidence', 0.5),
+            'analysis': conclusion.get('analysis', 'Analysis not available')
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating claim conclusion: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/update-claim-validation/<int:claim_id>', methods=['PUT'])
+def update_claim_validation(claim_id):
+    """Update claim validation results"""
+    try:
+        data = request.get_json()
+        verdict = data.get('verdict')
+        confidence = data.get('confidence')
+        analysis = data.get('analysis')
+        validation_logic = data.get('validation_logic')
+        sql_query = data.get('sql_query')
+        data_points_found = data.get('data_points_found', 0)
+        
+        # Determine supports_claim based on verdict
+        supports_claim = None
+        if verdict:
+            if verdict.lower() in ['supports', 'supported']:
+                supports_claim = True
+            elif verdict.lower() in ['refutes', 'refuted']:
+                supports_claim = False
+            # inconclusive remains None
+        
+        with db_manager.get_etso_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE validation_claims 
+                SET confidence_score = %s,
+                    supports_claim = %s,
+                    data_points_found = %s,
+                    analysis_text = %s,
+                    validation_logic = %s,
+                    validation_query = %s,
+                    validation_timestamp = %s
+                WHERE id = %s
+            """, (
+                confidence,
+                supports_claim,
+                data_points_found,
+                analysis,
+                validation_logic,
+                sql_query,
+                datetime.now(),
+                claim_id
+            ))
+            
+            conn.commit()
+            
+            if cursor.rowcount == 0:
+                return jsonify({'error': 'Claim not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'message': 'Claim validation updated successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating claim validation: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     logger.info("🚀 Starting OBSERVATORIO ETS Dashboard on http://localhost:5000")
     app.run(debug=True, host='0.0.0.0', port=5000)

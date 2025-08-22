@@ -1838,3 +1838,214 @@ pre code {
         grid-template-columns: 1fr;
     }
 }
+
+/* Claim Validation Modal Styles */
+.claim-item.clickable {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.claim-item.clickable:hover {
+    background: rgba(0, 102, 204, 0.05);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
+.claim-click-hint {
+    text-align: center;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+    opacity: 0.7;
+}
+
+.claim-validation-container {
+    padding: 20px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.validation-section {
+    margin-bottom: 32px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-primary);
+}
+
+.validation-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+.validation-section-header h4 {
+    margin: 0;
+    color: var(--primary-color);
+    font-size: var(--font-size-lg);
+}
+
+.claim-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    padding: 20px;
+}
+
+.claim-info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border-left: 3px solid var(--primary-color);
+}
+
+.claim-info-item label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.claim-info-item span {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.claim-text-display, .validation-logic-input, .conclusion-text {
+    padding: 20px;
+}
+
+.claim-display-box, .conclusion-display-box {
+    padding: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--info-color);
+    margin-top: 8px;
+    line-height: 1.6;
+    font-size: var(--font-size-base);
+}
+
+.validation-logic-input label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.validation-logic-actions, .validation-actions, .sql-query-actions, .conclusion-actions {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.conclusion-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.conclusion-verdict, .conclusion-confidence {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+}
+
+.verdict-badge {
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: white;
+}
+
+.verdict-badge.supports {
+    background: var(--success-color);
+}
+
+.verdict-badge.refutes {
+    background: var(--danger-color);
+}
+
+.verdict-badge.inconclusive {
+    background: var(--warning-color);
+}
+
+.verdict-badge.analyzing {
+    background: var(--info-color);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.confidence-display {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.conclusion-metadata {
+    padding: 12px 20px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+    color: var(--text-muted);
+}
+
+#claim-results-count {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
+
+@media (max-width: 768px) {
+    .claim-validation-container {
+        padding: 16px;
+        max-height: 90vh;
+    }
+    
+    .claim-info-grid {
+        grid-template-columns: 1fr;
+        padding: 16px;
+        gap: 12px;
+    }
+    
+    .validation-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px 16px;
+    }
+    
+    .validation-logic-actions,
+    .validation-actions,
+    .sql-query-actions,
+    .conclusion-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px 16px;
+    }
+    
+    .conclusion-summary {
+        grid-template-columns: 1fr;
+        padding: 16px;
+        gap: 12px;
+    }
+}
