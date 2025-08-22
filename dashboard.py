@@ -911,10 +911,10 @@ def update_theme(theme_id):
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE research_metadata SET
-                    theme_type = %s,
-                    quarter = %s,
-                    status = %s,
-                    user_guidance = %s,
+                    theme_type = COALESCE(%s, theme_type),
+                    quarter = COALESCE(%s, quarter),
+                    status = COALESCE(%s, status),
+                    user_guidance = COALESCE(%s, user_guidance),
                     enhanced_query = %s,
                     updated_at = NOW()
                 WHERE id = %s

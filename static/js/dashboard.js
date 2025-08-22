@@ -345,7 +345,7 @@ class ObservatorioDashboard {
                         ${rerunButton}
                     </div>
                 </div>
-                <div class="theme-guidance">${theme.user_guidance || 'No guidance provided'}</div>
+                <div class="theme-guidance">${theme.user_guidance || 'No research prompt provided'}</div>
                 <div class="theme-stats">
                     <span class="finding-status ${theme.status}">${theme.status}</span>
                     <span class="theme-confidence confidence-${confidenceClass}">${confidenceText}% confidence</span>
@@ -399,46 +399,31 @@ class ObservatorioDashboard {
             </div>
             
             <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
-                <div class="guidance-section">
+                <div class="prompt-section">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <span class="metadata-label">User Guidance</span>
-                        <button class="btn btn-sm btn-primary" onclick="dashboard.toggleGuidanceEdit(${metadata.id})">
+                        <span class="metadata-label">Research Prompt</span>
+                        <button class="btn btn-sm btn-primary" onclick="dashboard.togglePromptEdit(${metadata.id})">
                             ✏️ Edit
                         </button>
                     </div>
-                    <div id="guidance-display-${metadata.id}" class="metadata-value">
-                        ${metadata.user_guidance || 'No guidance provided'}
+                    <div id="prompt-display-${metadata.id}" class="metadata-value" style="white-space: pre-wrap;">
+                        ${metadata.user_guidance || 'No research prompt provided'}
                     </div>
-                    <div id="guidance-edit-${metadata.id}" style="display: none;">
-                        <textarea id="guidance-textarea-${metadata.id}" class="form-textarea" rows="3" 
-                                  style="width: 100%; margin: 8px 0;">${metadata.user_guidance || ''}</textarea>
+                    <div id="prompt-edit-${metadata.id}" style="display: none;">
+                        <textarea id="prompt-textarea-${metadata.id}" class="form-textarea" rows="6" 
+                                  style="width: 100%; margin: 8px 0; font-family: inherit;"
+                                  placeholder="Enter your research prompt...">${metadata.user_guidance || ''}</textarea>
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-sm btn-success" onclick="dashboard.saveAndRegenerateQuery(${metadata.id})">
-                                🔄 Save & Regenerate Enhanced Query
+                            <button class="btn btn-sm btn-success" onclick="dashboard.savePrompt(${metadata.id})">
+                                💾 Save Prompt
                             </button>
-                            <button class="btn btn-sm btn-secondary" onclick="dashboard.cancelGuidanceEdit(${metadata.id})">
+                            <button class="btn btn-sm btn-secondary" onclick="dashboard.cancelPromptEdit(${metadata.id})">
                                 Cancel
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            ${metadata.enhanced_query ? `
-                <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
-                    <div class="enhanced-query-section">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <span class="metadata-label">Enhanced Query (AI-Generated Deep Research)</span>
-                            <span class="badge-mini" style="background: var(--info-color); color: white;">
-                                Gemini-style
-                            </span>
-                        </div>
-                        <div class="metadata-value" style="white-space: pre-wrap; background: #f8f9fa; padding: 12px; border-radius: 8px;">
-                            ${metadata.enhanced_query}
-                        </div>
-                    </div>
-                </div>
-            ` : ''}
         `;
         
         // Display research content
@@ -1670,9 +1655,9 @@ class ObservatorioDashboard {
         }
     }
     
-    toggleGuidanceEdit(themeId) {
-        const displayDiv = document.getElementById(`guidance-display-${themeId}`);
-        const editDiv = document.getElementById(`guidance-edit-${themeId}`);
+    togglePromptEdit(themeId) {
+        const displayDiv = document.getElementById(`prompt-display-${themeId}`);
+        const editDiv = document.getElementById(`prompt-edit-${themeId}`);
         
         if (displayDiv && editDiv) {
             displayDiv.style.display = 'none';
@@ -1680,9 +1665,9 @@ class ObservatorioDashboard {
         }
     }
     
-    cancelGuidanceEdit(themeId) {
-        const displayDiv = document.getElementById(`guidance-display-${themeId}`);
-        const editDiv = document.getElementById(`guidance-edit-${themeId}`);
+    cancelPromptEdit(themeId) {
+        const displayDiv = document.getElementById(`prompt-display-${themeId}`);
+        const editDiv = document.getElementById(`prompt-edit-${themeId}`);
         
         if (displayDiv && editDiv) {
             displayDiv.style.display = 'block';
@@ -1690,49 +1675,44 @@ class ObservatorioDashboard {
         }
     }
     
-    async saveAndRegenerateQuery(themeId) {
-        const textarea = document.getElementById(`guidance-textarea-${themeId}`);
+    async savePrompt(themeId) {
+        const textarea = document.getElementById(`prompt-textarea-${themeId}`);
         if (!textarea) return;
         
-        const newGuidance = textarea.value.trim();
-        if (!newGuidance) {
-            this.showError('User guidance cannot be empty');
+        const newPrompt = textarea.value.trim();
+        if (!newPrompt) {
+            this.showError('Research prompt cannot be empty');
             return;
         }
         
         try {
-            // Show loading state
-            const button = event.target;
-            const originalText = button.innerHTML;
-            button.disabled = true;
-            button.innerHTML = '⏳ Regenerating...';
-            
-            // Call API to regenerate enhanced query
-            const response = await this.fetchAPI(`/api/regenerate-enhanced-query/${themeId}`, {
-                method: 'POST',
+            // Update the prompt in database
+            const response = await this.fetchAPI(`/api/update-theme/${themeId}`, {
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_guidance: newGuidance })
+                body: JSON.stringify({ 
+                    user_guidance: newPrompt,
+                    // Clear enhanced_query since we're using single prompt now
+                    enhanced_query: null
+                })
             });
             
             if (response.success) {
-                this.showSuccess('Enhanced query regenerated successfully!');
+                this.showSuccess('Research prompt saved successfully!');
                 
-                // Reload the research details to show updated content
-                await this.loadResearchDetails(themeId);
+                // Update the display
+                const displayDiv = document.getElementById(`prompt-display-${themeId}`);
+                if (displayDiv) {
+                    displayDiv.textContent = newPrompt;
+                }
+                this.cancelPromptEdit(themeId);
             } else {
-                throw new Error(response.error || 'Failed to regenerate enhanced query');
+                throw new Error(response.error || 'Failed to save prompt');
             }
             
         } catch (error) {
-            console.error('Error regenerating enhanced query:', error);
-            this.showError(`Failed to regenerate: ${error.message}`);
-        } finally {
-            // Reset button state
-            const button = event.target;
-            if (button) {
-                button.disabled = false;
-                button.innerHTML = '🔄 Save & Regenerate Enhanced Query';
-            }
+            console.error('Error saving prompt:', error);
+            this.showError(`Failed to save: ${error.message}`);
         }
     }
     
