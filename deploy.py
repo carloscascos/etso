@@ -120,7 +120,7 @@ def main():
     run_command("git push origin --tags")
     
     print(f"\n✅ Successfully deployed v{new_version}!")
-    print(f"🔗 Dashboard URL: http://172.31.40.23:5000")
+    print("🔗 Dashboard deployed and running")
 
 if __name__ == "__main__":
     main()
